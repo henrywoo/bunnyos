@@ -52,12 +52,12 @@ start_protected:
   ; 2. Continued ...
   jmp $
 
-BSTRING bmsg1, "**********************************************************"
-BSTRING bmsg2, "******************* BunnyOS 1.0 **************************"
-BSTRING author, "Author: Wu Fuheng"
-BSTRING email , "Email : wufuheng@gmail.com"
-BSTRING date  , "Date  : 2010-02-13"
-pos equ (80-bmsg1_len)/2
+  BSTRING bmsg1, "**********************************************************"
+  BSTRING bmsg2, "******************* BunnyOS 1.0 **************************"
+  BSTRING author, "Author: Wu Fuheng"
+  BSTRING email , "Email : wufuheng@gmail.com"
+  BSTRING date  , "Date  : 2010-02-13"
+  pos equ (80-bmsg1_len)/2
 
 
 
@@ -68,25 +68,25 @@ pos equ (80-bmsg1_len)/2
 
 
 
-;*** PCB - process control block
-;*******************************
-ProcFrame 1 ; bunny_p1
-ProcFrame 2 ; bunny_p2
-
-;*** my first process in bunnyOS
-;*******************************
-BSTRING p1data, "0"
-proc1:
-.1
-  PPrintLn p1data, 11, 0
-  call delay
-  inc byte [p1data]
-  loop .1
-  ret
-
-delay:
-  nop
-  ret
+  ;*** PCB - process control block
+  ;*******************************
+	ProcFrame 1 ; bunny_p1
+	ProcFrame 2 ; bunny_p2
+	
+  ;*** my first process in bunnyOS
+  ;*******************************
+	BSTRING p1data, "0"
+	proc1:
+	.1
+	  PPrintLn p1data, 11, 0
+	  call delay
+	  inc byte [p1data]
+	  loop .1
+	  ret
+	
+	delay:
+	  nop
+	  ret
   
 
 
@@ -103,42 +103,42 @@ delay:
 
 
 
-; push 20msg, 16msg_len, 12row, 8column; call PrintLn_ 
-;*****************
-PrintLn_:
-  push  ebp
-  mov ebp, esp
-  push  ebx
-  push  esi
-  push  edi
-
-  mov ecx, [ebp+16];len
-  push 0
-.1:
-  mov eax, [ebp+12];row=2
-  mov edx, 80
-  mul edx ; mul will affect EDX!!!
-  add eax, [ebp+8];column
-  shl eax, 1
-  mov edi, eax
-  mov edx, [ebp + 20]
-  pop ebx
-  mov al, byte [edx + ebx]
-  mov ah, 0Ah
-  mov [fs:edi], ax
-  inc ebx
-  push ebx
-  mov ebx, [ebp+8]
-  inc ebx
-  mov [ebp+8],ebx
-  LOOP .1
-
-  pop ebx
-  pop edi
-  pop esi
-  pop ebx
-  pop ebp
-  ret
+  ; push 20msg, 16msg_len, 12row, 8column; call PrintLn_ 
+  ;*****************
+	PrintLn_:
+	  push  ebp
+	  mov ebp, esp
+	  push  ebx
+	  push  esi
+	  push  edi
+	
+	  mov ecx, [ebp+16];len
+	  push 0
+	.1:
+	  mov eax, [ebp+12];row=2
+	  mov edx, 80
+	  mul edx ; mul will affect EDX!!!
+	  add eax, [ebp+8];column
+	  shl eax, 1
+	  mov edi, eax
+	  mov edx, [ebp + 20]
+	  pop ebx
+	  mov al, byte [edx + ebx]
+	  mov ah, 0Ah
+	  mov [fs:edi], ax
+	  inc ebx
+	  push ebx
+	  mov ebx, [ebp+8]
+	  inc ebx
+	  mov [ebp+8],ebx
+	  LOOP .1
+	
+	  pop ebx
+	  pop edi
+	  pop esi
+	  pop ebx
+	  pop ebp
+	  ret
 
 end_start_protected:
 
