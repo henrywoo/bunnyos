@@ -30,12 +30,7 @@ start_ldtcode1:
   BSTRING p1data, "I am proc 1 in ring 0: 0"
 	proc1:
 	.1:
-    push p1data
-    push p1data_len
-    push 13
-    push 1
-    call (GDT_3-GDT_1):(PrintLn_Far-start_protected) ;*** far call
-    add esp, 4*4
+    PPrintLn p1data, 13, 1
     nop
 	  inc byte [p1data+p1data_len-1]
 	  loop .1
@@ -52,14 +47,7 @@ start_ldtcode2:
   ;*** my second process in bunnyOS
 	proc2:
 	.1:
-	  ;PPrintLn p2data, 12, 1 ;***call function in different segment XX
-    push p2data
-    push p2data_len
-    push 12
-    push 1
-    call (GDT_3-GDT_1):(PrintLn_Far-start_protected) ;*** far call
-    ;call far PrintLn_ ;binary output format does not support segment base references
-    add esp, 16
+    PPrintLn p1data, 12, 1
     nop
 	  ;inc byte [p2data+p2data_len-1]
 	  ;loop .1
@@ -73,10 +61,12 @@ ALIGN 32
 GDT_1: Descriptor 0,0,0
 GDT_2: Descriptor 0B8000h, 32*1024-1, DA_DRW ;***video
 GDT_3: Descriptor 0, (end_start_protected-start_protected-1), DA_CR+DA_32
-GDT_4: Descriptor STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;stack
+GDT_4: Descriptor STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;kernel stack
 GDT_5: Descriptor 0, LDTLEN-1, DA_LDT ;LDT
 GDT_6: Descriptor 0, 0, DA_DRWA+DA_32 ;IDT
 GDT_7: Descriptor 0, 0, DA_DRWA+DA_32 ;TSS
+GDT_8: Descriptor 0, (end_funseg-start_funseg-1), DA_CR+DA_32 ;function segment
+GDT_9: Descriptor 100*1000, 1024*1024, DA_CR+DA_32 ; 1M process stack
 
 GDTLEN equ $-GDT_1
 STACKTOP equ 7C00h ; ~ 30K stack space
@@ -108,7 +98,13 @@ start_protected:
   mov ax, (GDT_5-GDT_1)
   lldt ax
   
-  jmp (LDT_2-LDT_1 + 0100b):0
+  ;jmp (LDT_2-LDT_1 + 0100b):0
+
+  ; initialize PCB
+  ;mov dword [ldt_sel_1],0
+  ;...
+	
+  ; initialize TSS
 
   ; 2. Continued ...
   jmp $
@@ -122,53 +118,20 @@ start_protected:
   pos equ 1
 
   ;*** PCB - process control block
-  ;*******************************
 	ProcFrame 1 ; bunny_p1
 	ProcFrame 2 ; bunny_p2
+  
+  DEFTSS tss_
 
-  ; initialize PCB
-  ;*******************************
-  mov dword [ldt_sel_1],0
-	
-	
-  ;*** push 20msg, 16msg_len, 12row, 8column; call PrintLn_ 
+
+end_start_protected:
+
+[section FuncSeg]
+ALIGN 32
+start_funseg:
+  ;*** push 24msg, 20msg_len, 16row, 12column; call PrintLn_ 
   ;*****************
-	PrintLn_:
-	  push  ebp
-	  mov ebp, esp
-	  push  ebx
-	  push  esi
-	  push  edi
-	
-	  mov ecx, [ebp+16];len
-	  push 0
-	.1:
-	  mov eax, [ebp+12];row=2
-	  mov edx, 80
-	  mul edx ; mul will affect EDX!!!
-	  add eax, [ebp+8];column
-	  shl eax, 1
-	  mov edi, eax
-	  mov edx, [ebp + 20]
-	  pop ebx
-	  mov al, byte [edx + ebx]
-	  mov ah, 0Ah
-	  mov [fs:edi], ax
-	  inc ebx
-	  push ebx
-	  mov ebx, [ebp+8]
-	  inc ebx
-	  mov [ebp+8],ebx
-	  LOOP .1
-	
-	  pop ebx
-	  pop edi
-	  pop esi
-	  pop ebx
-	  pop ebp
-	  ret
-
-	PrintLn_Far:
+	printline:
 	  push  ebp
 	  mov ebp, esp
 	  push  ebx
@@ -203,9 +166,7 @@ start_protected:
 	  pop ebp
 	  retf
 
-
-end_start_protected:
-
+end_funseg:
 
 ;********************************************************
 BITS 16
@@ -215,6 +176,7 @@ start_real:
   ; 0. calculate Protected mode segment descp
   DTBaseEqual GDT_3,start_protected
   DTBaseEqual GDT_5,start_ldt
+  DTBaseEqual GDT_8,start_funseg
   DTBaseEqual LDT_1,start_ldtcode1
   DTBaseEqual LDT_2,start_ldtcode2
 
