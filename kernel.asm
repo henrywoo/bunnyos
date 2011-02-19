@@ -14,11 +14,69 @@ jmp start_real
 ; ring0<->ring1,PCB,stack,TSS
 ;*********************************************************************
 BITS 32
+[SECTION LDT]
+ALIGN 32
+start_ldt:
+LDT_1: Descriptor 0, (end_ldtcode1-start_ldtcode1), DA_C+DA_32
+LDT_2: Descriptor 0, (end_ldtcode2-start_ldtcode2), DA_C+DA_32
+
+LDTLEN equ $-LDT_1
+
+[SECTION LPROC1]
+ALIGN 32
+start_ldtcode1:
+  call proc1
+  ;*** my first process in bunnyOS
+  BSTRING p1data, "I am proc 1 in ring 0: 0"
+	proc1:
+	.1:
+    push p1data
+    push p1data_len
+    push 13
+    push 1
+    call (GDT_3-GDT_1):(PrintLn_Far-start_protected) ;*** far call
+    add esp, 4*4
+    nop
+	  inc byte [p1data+p1data_len-1]
+	  loop .1
+	  ret
+end_ldtcode1:
+
+[SECTION LPROC2]
+ALIGN 32
+start_ldtcode2:
+  call proc2
+  jmp (LDT_1-LDT_1 + 0100b):0
+  ;jmp $
+
+  ;*** my second process in bunnyOS
+	proc2:
+	.1:
+	  ;PPrintLn p2data, 12, 1 ;***call function in different segment XX
+    push p2data
+    push p2data_len
+    push 12
+    push 1
+    call (GDT_3-GDT_1):(PrintLn_Far-start_protected) ;*** far call
+    ;call far PrintLn_ ;binary output format does not support segment base references
+    add esp, 16
+    nop
+	  ;inc byte [p2data+p2data_len-1]
+	  ;loop .1
+	  ret
+
+BSTRING p2data, "I am proc 2 in ring 0: 0"
+end_ldtcode2:
+
 [section GDT]
+ALIGN 32
 GDT_1: Descriptor 0,0,0
 GDT_2: Descriptor 0B8000h, 32*1024-1, DA_DRW ;***video
-GDT_3: Descriptor 0, (end_start_protected-start_protected-1), DA_CR+DA_32 ;??????
+GDT_3: Descriptor 0, (end_start_protected-start_protected-1), DA_CR+DA_32
 GDT_4: Descriptor STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;stack
+GDT_5: Descriptor 0, LDTLEN-1, DA_LDT ;LDT
+GDT_6: Descriptor 0, 0, DA_DRWA+DA_32 ;IDT
+GDT_7: Descriptor 0, 0, DA_DRWA+DA_32 ;TSS
 
 GDTLEN equ $-GDT_1
 STACKTOP equ 7C00h ; ~ 30K stack space
@@ -42,68 +100,38 @@ start_protected:
 
   PPrintLn bmsg1, 3, pos
   PPrintLn bmsg2, 4, pos
-  PPrintLn bmsg1, 5, pos
   PPrintLn author,7, pos
   PPrintLn email, 8, pos
   PPrintLn date,  9, pos
 
-  call proc1
+  ;call proc1
+  mov ax, (GDT_5-GDT_1)
+  lldt ax
+  
+  jmp (LDT_2-LDT_1 + 0100b):0
 
   ; 2. Continued ...
   jmp $
 
-  BSTRING bmsg1, "**********************************************************"
-  BSTRING bmsg2, "******************* BunnyOS 1.0 **************************"
+  BSTRING bmsg1, "BunnyOS 1.0"
+  BSTRING bmsg2, "Protected Mode"
   BSTRING author, "Author: Wu Fuheng"
   BSTRING email , "Email : wufuheng@gmail.com"
   BSTRING date  , "Date  : 2010-02-13"
-  pos equ (80-bmsg1_len)/2
-
-
-
-
-
-
-
-
-
+  ;pos equ (80-bmsg1_len)/2
+  pos equ 1
 
   ;*** PCB - process control block
   ;*******************************
 	ProcFrame 1 ; bunny_p1
 	ProcFrame 2 ; bunny_p2
-	
-  ;*** my first process in bunnyOS
+
+  ; initialize PCB
   ;*******************************
-	BSTRING p1data, "0"
-	proc1:
-	.1
-	  PPrintLn p1data, 11, 0
-	  call delay
-	  inc byte [p1data]
-	  loop .1
-	  ret
+  mov dword [ldt_sel_1],0
 	
-	delay:
-	  nop
-	  ret
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  ; push 20msg, 16msg_len, 12row, 8column; call PrintLn_ 
+	
+  ;*** push 20msg, 16msg_len, 12row, 8column; call PrintLn_ 
   ;*****************
 	PrintLn_:
 	  push  ebp
@@ -140,8 +168,43 @@ start_protected:
 	  pop ebp
 	  ret
 
-end_start_protected:
+	PrintLn_Far:
+	  push  ebp
+	  mov ebp, esp
+	  push  ebx
+	  push  esi
+	  push  edi
+	
+	  mov ecx, [ebp+16+4];len
+	  push 0
+	.1:
+	  mov eax, [ebp+12+4];row=2
+	  mov edx, 80
+	  mul edx ; mul will affect EDX!!!
+	  add eax, [ebp+8+4];column
+	  shl eax, 1
+	  mov edi, eax
+	  mov edx, [ebp+20+4]
+	  pop ebx
+	  mov al, byte [edx + ebx]
+	  mov ah, 0ch
+	  mov [fs:edi], ax
+	  inc ebx
+	  push ebx
+	  mov ebx, [ebp+8+4]
+	  inc ebx
+	  mov [ebp+8+4],ebx
+	  LOOP .1
+	
+	  pop ebx; 
+	  pop edi
+	  pop esi
+	  pop ebx
+	  pop ebp
+	  retf
 
+
+end_start_protected:
 
 
 ;********************************************************
@@ -150,12 +213,10 @@ BITS 16
 start_real:
 
   ; 0. calculate Protected mode segment descp
-  xor eax, eax
-  mov eax, (start_protected)
-  mov word[GDT_3+2], ax
-  shr eax, 16
-  mov byte [GDT_3+4], al
-  mov byte [GDT_3+7], ah
+  DTBaseEqual GDT_3,start_protected
+  DTBaseEqual GDT_5,start_ldt
+  DTBaseEqual LDT_1,start_ldtcode1
+  DTBaseEqual LDT_2,start_ldtcode2
 
   ; 1. load gdt to gdtr
   lgdt [gdtptr]

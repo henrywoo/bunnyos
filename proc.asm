@@ -20,12 +20,12 @@ bunny_p %+ %1:
    esp_ %+ %1     dd 0
    ss_ %+ %1      dd 0
 
-  ldt_sel_ %+ %1 dw 0
-  decp1_ %+ %1 dd 0
-        dd 0 
-  decp2_ %+ %1 dd 0
-        dd 0 
-  pid_ %+ %1   dd 0
+  ldt_sel_ %+ %1  dw 0
+  decp1_ %+ %1    dd 0
+                  dd 0 
+  decp2_ %+ %1    dd 0
+                  dd 0 
+  pid_ %+ %1      dd 0
   pname_ %+ %1 times 16 db 0
 
 bunny_p %+ %1 %+ _end:

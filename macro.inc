@@ -53,4 +53,13 @@ int 10h   ; 10h 号中断
   add esp, 16
 %endmacro
 
+%macro DTBaseEqual 2
+  xor eax, eax
+  mov eax, (%2)
+  mov word[%1+2], ax
+  shr eax, 16
+  mov byte [%1+4], al
+  mov byte [%1+7], ah
+%endmacro
+
 %define STARTLINE 1
