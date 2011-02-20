@@ -14,26 +14,44 @@ jmp start_real
 ; ring0<->ring1,PCB,stack,TSS
 ;*********************************************************************
 [section GDT]
+bits 32
 ALIGN 32
 GDT_1: Descriptor 0,0,0
 GDT_2: Descriptor 0B8000h, 32*1024-1, DA_DRW+DA_DPL3;***video
 GDT_3: Descriptor 0, (end_start_protected-start_protected-1), DA_CR+DA_32
 GDT_4: Descriptor STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***kernel stack
 GDT_5: Descriptor 0, LDTLEN-1, DA_LDT ;LDT
-GDT_6: Descriptor 0, 0, DA_DRWA+DA_32 ;IDT
 GDT_7: Descriptor 0, (endtss-starttss-1), DA_386TSS ;TSS
-GDT_8: Descriptor 0, (end_funseg-start_funseg-1), DA_CR+DA_32;***function segment
+GDT_8: Descriptor 0, (end_funseg-start_funseg-1), DA_CCOR+DA_32;***function segment - conforming
 GDT_9: Descriptor OneMB, OneMB, DA_DRWA+DA_32 ;***1M process stack
 GDT_10: Descriptor 0, (end_gate-start_gate-1), DA_CR+DA_32 ;***ring0
-GDT_11: Descriptor 0, (end_data-start_data-1), DA_DRWA+DA_32 ;***data segment
+GDT_11: Descriptor 0, (end_data-start_data-1), DA_DRWA+DA_32;***data segment
 GDT_300: Descriptor 0, (end_ring3code-start_ring3code-1), DA_CR+DA_32+ DA_DPL3;*** Ring3 code seg(90M)
-GDT_301: Descriptor 100*OneMB, OneMB, DA_DRWA+DA_32+DA_DPL3 ;*** Ring3 stack(1M)
+GDT_301: Descriptor 10*OneMB, 1024*10, DA_DRWA+DA_32+DA_DPL3 ;*** Ring3 stack(10K)
 
 GATE_1: Gate (GDT_10-GDT_1), 0, 0, DA_386CGate+DA_DPL3
 
 GDTLEN equ $-GDT_1
 gdtptr  dw (GDTLEN - 1)
         dd (GDT_1)
+
+[section .idt]
+bits 32
+ALIGN 32
+IDT_1:
+;***0x80 = 128, INT vector start from 0
+%rep 32
+        Gate GDT_3-GDT_1,SpuriousHandler, 0,DA_386IGate
+%endrep
+.020h   Gate GDT_3-GDT_1,ClockHandler,    0,DA_386IGate
+%rep 95
+        Gate GDT_3-GDT_1,SpuriousHandler, 0,DA_386IGate
+%endrep
+.080h   Gate GDT_3-GDT_1,int80Handler,    0,DA_386IGate
+
+IDTLEN  equ $-IDT_1
+IDTPtr  dw IDTLEN-1
+        dd 0
 
 ;*********************************************************************
 [SECTION LDT]
@@ -50,7 +68,19 @@ LDTLEN equ $-LDT_1
 BITS 32
 ALIGN 32
 start_ldtcode1:
-  call proc1
+  mov edi,(80*19+1)*2
+  mov al,'P'
+  mov ah,0Ah
+  mov [fs:edi],ax
+  mov edi,(80*19+2)*2
+  mov al,'1'
+  mov ah,0Ah
+  mov [fs:edi],ax
+  ;call proc1
+  int 080h
+  sti
+  jmp $
+  jmp $
   ;*** my first process in bunnyOS
 	proc1:
 	.1:
@@ -67,8 +97,16 @@ end_ldtcode1:
 BITS 32
 ALIGN 32
 start_ldtcode2:
-  call proc2
-  jmp (LDT_1-LDT_1 + 0100b):0
+  mov edi,(80*18+1)*2
+  mov al,'P'
+  mov ah,0Ah
+  mov [fs:edi],ax
+  mov edi,(80*18+2)*2
+  mov al,'2'
+  mov ah,0Ah
+  mov [fs:edi],ax
+  ;call proc2
+  jmp (LDT_1-LDT_1+0100b):0
   ;jmp $
 
   ;*** my second process in bunnyOS
@@ -80,15 +118,18 @@ start_ldtcode2:
 BSTRING p2data, "proc 2 in ring 0: 0"
 end_ldtcode2:
 
-
+;*********************************************************************
 [section TSSSEG]
 BITS 32
 starttss:
   DEFTSS tss_ 
 endtss:
+
+
 ;*********************************************************************
 [section ProtectedMode]
 BITS 32
+align 32
 start_protected:
 
   ;num2str:
@@ -133,9 +174,14 @@ start_protected:
   
   ;jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT code segment
 
+  call Init8259A
+  ;int 080h
+  ;sti
+  ;jmp $
+
   PPrintLn bmsg6, 13, pos
   push GDT_301-GDT_1+SA_RPL3
-  push OneMB-1
+  push 1024-1
   push GDT_300-GDT_1+SA_RPL3
   push 0
   retf ;***jump to -> start_ring3code
@@ -155,6 +201,7 @@ start_protected:
   BSTRING bmsg4, "Load TSS..."
   BSTRING bmsg5, "Load LDT..."
   BSTRING bmsg6, "Entering ring 3..."
+  BSTRING bmsg7, "Interrupt happens!!!"
   BSTRING author, "Author: Wu Fuheng"
   BSTRING email , "Email : wufuheng@gmail.com"
   BSTRING date  , "Date  : 2010-02-13"
@@ -164,6 +211,82 @@ start_protected:
   ;*** PCB - process control block
 	ProcFrame 1 ; bunny_p1
 	ProcFrame 2 ; bunny_p2
+
+  io_delay:
+  %rep 1024
+   nop
+  %endrep
+    ret
+
+  _SpuriousHandler:
+  SpuriousHandler equ _SpuriousHandler - $$
+    ;PPrintLn bmsg7, 17, pos
+    mov ah, 0Dh
+    mov al, 'i'
+    mov [fs:((80 * 20 + 40) * 2)], ax
+    jmp $
+    iretd
+
+  _int80Handler:
+  int80Handler equ _int80Handler - $$
+    mov ah, 0Dh
+    mov al, '8'
+    mov [fs:((80 * 20 + 40) * 2)], ax
+    mov ah, 0Dh
+    mov al, '0'
+    mov [fs:((80 * 20 + 41) * 2)], ax
+    iretd
+    
+  _ClockHandler:
+  ClockHandler equ _ClockHandler - $$
+    inc byte [fs:((80 * 20 + 40) * 2)]
+    mov al, 20h
+    out 20h, al
+    iretd
+    
+
+;*** Init8259A ------------------------------------
+Init8259A:
+  mov al, 011h
+  out 020h, al  ; 主8259, ICW1.
+  call  io_delay
+
+  out 0A0h, al  ; 从8259, ICW1.
+  call  io_delay
+
+  mov al, 020h  ; IRQ0 对应中断向量 0x20
+  out 021h, al  ; 主8259, ICW2.
+  call  io_delay
+
+  mov al, 028h  ; IRQ8 对应中断向量 0x28
+  out 0A1h, al  ; 从8259, ICW2.
+  call  io_delay
+
+  mov al, 004h  ; IR2 对应从8259
+  out 021h, al  ; 主8259, ICW3.
+  call  io_delay
+
+  mov al, 002h  ; 对应主8259的 IR2
+  out 0A1h, al  ; 从8259, ICW3.
+  call  io_delay
+
+  mov al, 001h
+  out 021h, al  ; 主8259, ICW4.
+  call  io_delay
+
+  out 0A1h, al  ; 从8259, ICW4.
+  call  io_delay
+
+  ;mov  al, 11111111b ; 屏蔽主8259所有中断
+  mov al, 11111110b ; 仅仅开启定时器中断
+  out 021h, al  ; 主8259, OCW1.
+  call  io_delay
+
+  mov al, 11111111b ; 屏蔽从8259所有中断
+  out 0A1h, al  ; 从8259, OCW1.
+  call  io_delay
+
+  ret
 
 
 end_start_protected:
@@ -239,7 +362,8 @@ end_funseg:
 BITS 32
 align 32
 start_ring3code:
-  ;PPrintLn pdata244, 15, 1
+  ;*************??????????
+  ;PPrintLn pdata244, 25, 1
   mov edi,(80*14+1)*2
   mov al,'R'
   mov ah,0Ah
@@ -248,10 +372,9 @@ start_ring3code:
   mov al,'3'
   mov ah,0Ah
   mov [fs:edi],ax
-
   call (GATE_1-GDT_1+SA_RPL3):0
   jmp $
-  BSTRING pdata244, "Enter ring 3"
+BSTRING pdata244, "I am under ring 3 now!"
 end_ring3code:
 
 ;********************************************************
@@ -259,7 +382,8 @@ end_ring3code:
 BITS 32
 align 32
 start_gate:
-  ;PPrintLn pdata262, 16, 1
+  ;*************??????????
+  ;PPrintLn pdata262, 26, 1
   mov edi,(80*15+1)*2
   mov al,'R'
   mov ah,0Ah
@@ -268,10 +392,10 @@ start_gate:
   mov al,'0'
   mov ah,0Ah
   mov [fs:edi],ax
-  ;jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT code segment
+  jmp (LDT_2-LDT_1+0100b):0 ;*** go to LDT code segment
 
   jmp $
-  BSTRING pdata262, "Return to ring 0"
+BSTRING pdata262, "Return to ring 0"
 end_gate:
 
 ;********************************************************
@@ -311,8 +435,16 @@ LABEL_MEM_CHK_OK:
   ; 1. load gdt to gdtr
   lgdt [gdtptr]
 
+  xor eax,eax
+  mov ax,ds
+  shl eax,4
+  add eax,IDT_1
+  mov dword [IDTPtr+2], eax
+
   ; 2. close interrupt
   cli
+
+  lidt [IDTPtr]
 
   ; 3. open A20
   in al, 92h
