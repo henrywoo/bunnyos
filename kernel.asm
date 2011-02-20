@@ -12,54 +12,6 @@ jmp start_real
 ;
 ; 2. Start Process
 ; ring0<->ring1,PCB,stack,TSS
-
-
-;*********************************************************************
-BITS 32
-[SECTION LDT]
-ALIGN 32
-start_ldt:
-LDT_1: Descriptor 0, (end_ldtcode1-start_ldtcode1), DA_C+DA_32
-LDT_2: Descriptor 0, (end_ldtcode2-start_ldtcode2), DA_C+DA_32
-
-LDTLEN equ $-LDT_1
-
-;*********************************************************************
-[SECTION LPROC1]
-ALIGN 32
-start_ldtcode1:
-  call proc1
-  ;*** my first process in bunnyOS
-  BSTRING p1data, "I am proc 1 in ring 0: 0"
-	proc1:
-	.1:
-    PPrintLn p1data, 13, 1
-    nop
-	  inc byte [p1data+p1data_len-1]
-	  loop .1
-	  ret
-end_ldtcode1:
-
-;*********************************************************************
-[SECTION LPROC2]
-ALIGN 32
-start_ldtcode2:
-  call proc2
-  jmp (LDT_1-LDT_1 + 0100b):0
-  ;jmp $
-
-  ;*** my second process in bunnyOS
-	proc2:
-	.1:
-    PPrintLn p1data, 12, 1
-    nop
-	  ;inc byte [p2data+p2data_len-1]
-	  ;loop .1
-	  ret
-
-BSTRING p2data, "I am proc 2 in ring 0: 0"
-end_ldtcode2:
-
 ;*********************************************************************
 [section GDT]
 ALIGN 32
@@ -69,21 +21,68 @@ GDT_3: Descriptor 0, (end_start_protected-start_protected-1), DA_CR+DA_32
 GDT_4: Descriptor STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***kernel stack
 GDT_5: Descriptor 0, LDTLEN-1, DA_LDT ;LDT
 GDT_6: Descriptor 0, 0, DA_DRWA+DA_32 ;IDT
-GDT_7: Descriptor 0, (endtss-starttss), DA_386TSS ;TSS
-GDT_8: Descriptor 0, (end_funseg-start_funseg-1), DA_CR+DA_32 ;***function segment
+GDT_7: Descriptor 0, (endtss-starttss-1), DA_386TSS ;TSS
+GDT_8: Descriptor 0, (end_funseg-start_funseg-1), DA_CR+DA_32;***function segment
 GDT_9: Descriptor OneMB, OneMB, DA_DRWA+DA_32 ;***1M process stack
-
-
-GDT_300: Descriptor 0, (end_ring3code-start_ring3code), DA_CR+DA_32+ DA_DPL3;*** Ring3 code seg(90M)
+GDT_10: Descriptor 0, (end_gate-start_gate-1), DA_CR+DA_32 ;***ring0
+GDT_11: Descriptor 0, (end_data-start_data-1), DA_DRWA+DA_32 ;***data segment
+GDT_300: Descriptor 0, (end_ring3code-start_ring3code-1), DA_CR+DA_32+ DA_DPL3;*** Ring3 code seg(90M)
 GDT_301: Descriptor 100*OneMB, OneMB, DA_DRWA+DA_32+DA_DPL3 ;*** Ring3 stack(1M)
 
+GATE_1: Gate (GDT_10-GDT_1), 0, 0, DA_386CGate+DA_DPL3
 
 GDTLEN equ $-GDT_1
-
 gdtptr  dw (GDTLEN - 1)
         dd (GDT_1)
 
+;*********************************************************************
+[SECTION LDT]
+BITS 32
+ALIGN 32
+start_ldt:
+LDT_1: Descriptor 0, (end_ldtcode1-start_ldtcode1), DA_CR+DA_32
+LDT_2: Descriptor 0, (end_ldtcode2-start_ldtcode2), DA_CR+DA_32
+
+LDTLEN equ $-LDT_1
+
+;*********************************************************************
+[SECTION LPROC1]
+BITS 32
+ALIGN 32
+start_ldtcode1:
+  call proc1
+  ;*** my first process in bunnyOS
+	proc1:
+	.1:
+    PPrintLn p1data, 17, 1
+    nop
+	  inc byte [p1data+p1data_len-1]
+	  loop .1
+	  ret
+BSTRING p1data, "I am proc 1 in ring 0: 0"
+end_ldtcode1:
+
+;*********************************************************************
+[SECTION LPROC2]
+BITS 32
+ALIGN 32
+start_ldtcode2:
+  call proc2
+  jmp (LDT_1-LDT_1 + 0100b):0
+  ;jmp $
+
+  ;*** my second process in bunnyOS
+	proc2:
+	.1:
+    PPrintLn p2data, 18, 1
+	  ret
+
+BSTRING p2data, "proc 2 in ring 0: 0"
+end_ldtcode2:
+
+
 [section TSSSEG]
+BITS 32
 starttss:
   DEFTSS tss_ 
 endtss:
@@ -132,15 +131,15 @@ start_protected:
   lldt ax
   PPrintLn bmsg5, 12, pos
   
-  ;jmp (LDT_2-LDT_1 + 0100b):0
+  ;jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT code segment
 
+  PPrintLn bmsg6, 13, pos
   push GDT_301-GDT_1+SA_RPL3
   push OneMB-1
   push GDT_300-GDT_1+SA_RPL3
   push 0
   retf ;***jump to -> start_ring3code
 
-  ;jmp (GDT_300-GDT_1):0
   PPrintLn bmsg6, 13, pos
 
   ; initialize PCB
@@ -171,6 +170,7 @@ end_start_protected:
 
 ;*********************************************************************
 [section FuncSeg]
+BITS 32
 ALIGN 32
 start_funseg:
   ;*** push 24msg, 20msg_len, 16row, 12column; call PrintLn_ 
@@ -193,7 +193,7 @@ start_funseg:
 	  mov edi, eax
 	  mov edx, [ebp+20+4]
 	  pop ebx
-	  mov al, byte [edx + ebx]
+	  mov al, byte [edx+ebx]
 	  mov ah, 0ch
 	  mov [fs:edi], ax
 	  inc ebx
@@ -240,21 +240,70 @@ BITS 32
 align 32
 start_ring3code:
   ;PPrintLn pdata244, 15, 1
+  mov edi,(80*14+1)*2
+  mov al,'R'
+  mov ah,0Ah
+  mov [fs:edi],ax
+  mov edi,(80*14+2)*2
+  mov al,'3'
+  mov ah,0Ah
+  mov [fs:edi],ax
+
+  call (GATE_1-GDT_1+SA_RPL3):0
   jmp $
   BSTRING pdata244, "Enter ring 3"
 end_ring3code:
+
+;********************************************************
+[SECTION MyGate]
+BITS 32
+align 32
+start_gate:
+  ;PPrintLn pdata262, 16, 1
+  mov edi,(80*15+1)*2
+  mov al,'R'
+  mov ah,0Ah
+  mov [fs:edi],ax
+  mov edi,(80*15+2)*2
+  mov al,'0'
+  mov ah,0Ah
+  mov [fs:edi],ax
+  ;jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT code segment
+
+  jmp $
+  BSTRING pdata262, "Return to ring 0"
+end_gate:
 
 ;********************************************************
 BITS 16
 [section RealAddressMode]
 start_real:
 
+  ;*** Get Memory from int 15
+  mov ebx, 0
+  mov di, _MemChkBuf
+.loop:
+  mov eax, 0E820h
+  mov ecx, 20
+  mov edx, 0534D4150h;'SMAP'
+  int 15h
+  jc  LABEL_MEM_CHK_FAIL
+  add di, 20
+  inc dword [_dwMCRNumber]
+  cmp ebx, 0
+  jne .loop
+  jmp LABEL_MEM_CHK_OK
+LABEL_MEM_CHK_FAIL:
+  mov dword [_dwMCRNumber], 0
+LABEL_MEM_CHK_OK:
     
   ; 0. calculate Protected mode segment descp
   DTBaseEqual GDT_3,start_protected
   DTBaseEqual GDT_5,start_ldt
   DTBaseEqual GDT_7,starttss
   DTBaseEqual GDT_8,start_funseg
+  DTBaseEqual GDT_10,start_gate
+  DTBaseEqual GDT_11,start_data
   DTBaseEqual LDT_1,start_ldtcode1
   DTBaseEqual LDT_2,start_ldtcode2
   DTBaseEqual GDT_300,start_ring3code
@@ -278,3 +327,13 @@ start_real:
   ; 6. jump to protected mode
   jmp dword (GDT_3-GDT_1):0
 
+
+_dwMCRNumber:     dd  0
+_MemChkBuf: times 256 db  0
+
+[section .text]
+bits 32
+align 32
+start_data:
+  BSTRING p2data_, "I am proc 2 in ring 0: 0"
+end_data:
