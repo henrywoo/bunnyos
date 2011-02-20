@@ -68,18 +68,11 @@ LDTLEN equ $-LDT_1
 BITS 32
 ALIGN 32
 start_ldtcode1:
-  mov edi,(80*19+1)*2
-  mov al,'P'
-  mov ah,0Ah
-  mov [fs:edi],ax
-  mov edi,(80*19+2)*2
-  mov al,'1'
-  mov ah,0Ah
-  mov [fs:edi],ax
-  ;call proc1
+  PRINTCHAR 0eh,'P',14,10
+  PRINTCHAR 0eh,'1',14,11
+  call proc1
   int 080h
   sti
-  jmp $
   jmp $
   ;*** my first process in bunnyOS
 	proc1:
@@ -97,14 +90,8 @@ end_ldtcode1:
 BITS 32
 ALIGN 32
 start_ldtcode2:
-  mov edi,(80*18+1)*2
-  mov al,'P'
-  mov ah,0Ah
-  mov [fs:edi],ax
-  mov edi,(80*18+2)*2
-  mov al,'2'
-  mov ah,0Ah
-  mov [fs:edi],ax
+  PRINTCHAR 0dh,'P',14,1
+  PRINTCHAR 0dh,'2',14,2
   ;call proc2
   jmp (LDT_1-LDT_1+0100b):0
   ;jmp $
@@ -126,25 +113,41 @@ starttss:
 endtss:
 
 
+%macro ProcFrame 1
+bunny_p %+ %1:
+
+   gs_ %+ %1    dd 0
+   fs_ %+ %1    dd 0
+   es_ %+ %1    dd 0
+   ds_ %+ %1    dd 0
+   edi_ %+ %1   dd 0
+   esi_ %+ %1   dd 0
+   ebp_ %+ %1   dd 0
+   k_esp_ %+ %1 dd 0
+   ebx_ %+ %1   dd 0
+   edx_ %+ %1   dd 0
+   ecx_ %+ %1   dd 0
+   eax_ %+ %1   dd 0
+   retaddr_ %+ %1 dd 0
+   eip_ %+ %1     dd 0
+   cs_ %+ %1      dd 0
+   eflags_ %+ %1  dd 0
+   esp_ %+ %1     dd 0
+   ss_ %+ %1      dd 0
+
+   ldt_sel_ %+ %1  dw 0
+   pid_ %+ %1      dd 0
+   pname_ %+ %1 times 16 db 0
+
+bunny_p %+ %1 %+ _end:
+%endmacro
+
 ;*********************************************************************
 [section ProtectedMode]
 BITS 32
 align 32
 start_protected:
 
-  ;num2str:
-  ;  mov edx, 20014a7fh
-  ;  mov ebx, 10000000h
-  ;  mov ecx, 32
-  ;.1:
-  ;  mov eax, edx
-  ;  xor edx, edx
-  ;  div ebx; residual is in edx, eax is result
-  ;  and eax, 0fh
-  ;  mov byte[num_+32-ecx],al;***????????????????
-  ;  shr ebx, 4
-  ;  loop .1
-  ;num_ times 32 db 0
 
   ; 0. set stack
   mov dx, GDT_4-GDT_1
@@ -152,7 +155,7 @@ start_protected:
   mov esp, (STACKTOP-STACKBOT-1)
 
   ; 1. write video memory, showing i am in protected mode
-  mov cx, GDT_2 - GDT_1
+  mov cx, GDT_2-GDT_1
   mov fs, cx
   PPrintLn bmsg1, 3, pos
   PPrintLn bmsg2, 4, pos
@@ -160,25 +163,50 @@ start_protected:
   PPrintLn email, 8, pos
   PPrintLn date,  9, pos
 
-  ; 0.5 TSS initialization, Loading TSS
+  ; 2. TSS initialization, Loading TSS
   mov dword [ss0], GDT_4-GDT_1
   mov dword [esp0], (STACKTOP-STACKBOT-1)
   mov ax, GDT_7-GDT_1
   ltr ax
   PPrintLn bmsg4, 11, pos
 
-  ;call proc1
+  ; 3. load LTD
   mov ax, (GDT_5-GDT_1)
   lldt ax
   PPrintLn bmsg5, 12, pos
   
-  ;jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT code segment
+  jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT code segment
 
+  ; 4. init Interrupt
   call Init8259A
   ;int 080h
-  ;sti
+  ;sti; start interrupt
   ;jmp $
 
+  ; 5. *** init PCB
+  mov word [ldt_sel_1],(GDT_5-GDT_1); LDT Selector
+  mov dword [pid_1],1
+  ;mov dword [pid_1],'Proc1';memcpy
+  mov dword [cs_1],(LDT_1-LDT_1+0100b)
+  mov dword [ds_1],(LDT_2-LDT_1+0100b)
+  mov dword [es_1],(LDT_2-LDT_1+0100b)
+  mov dword [fs_1],(LDT_2-LDT_1+0100b)
+  mov dword [ss_1],(LDT_2-LDT_1+0100b)
+  mov dword [gs_1],(LDT_2-LDT_1+0100b)
+  mov dword [fs_1],(GDT_2-GDT_1)
+  mov dword [eip_1],proc1 ;***???
+  mov dword [esp_1],esp ;***????
+  mov dword [eflags_1],1202h
+
+  ;pop gs
+  ;pop fs
+  ;pop es
+  ;pop ds
+  ;popad
+  ;add esp,4
+  ;iretd
+
+  ; 6. ring0 -> ring3
   PPrintLn bmsg6, 13, pos
   push GDT_301-GDT_1+SA_RPL3
   push 1024-1
@@ -186,13 +214,7 @@ start_protected:
   push 0
   retf ;***jump to -> start_ring3code
 
-  PPrintLn bmsg6, 13, pos
-
-  ; initialize PCB
-  ;mov dword [ldt_sel_1],0
-  ;...
-	
-  ; 2. Continued ...
+  ; ... Continued ...
   jmp $
 
   BSTRING bmsg1, "BunnyOS 1.0"
@@ -221,27 +243,38 @@ start_protected:
   _SpuriousHandler:
   SpuriousHandler equ _SpuriousHandler - $$
     ;PPrintLn bmsg7, 17, pos
-    mov ah, 0Dh
-    mov al, 'i'
-    mov [fs:((80 * 20 + 40) * 2)], ax
+    PRINTCHAR 0dh,'I',20,40
+    PRINTCHAR 0dh,'N',20,41
+    PRINTCHAR 0dh,'T',20,42
     jmp $
     iretd
 
   _int80Handler:
   int80Handler equ _int80Handler - $$
-    mov ah, 0Dh
-    mov al, '8'
-    mov [fs:((80 * 20 + 40) * 2)], ax
-    mov ah, 0Dh
-    mov al, '0'
-    mov [fs:((80 * 20 + 41) * 2)], ax
+    PRINTCHAR 0dh,'8',21,40
+    PRINTCHAR 0dh,'0',21,41
+    PRINTCHAR 0dh,':',21,42
+    PRINTCHAR 0dh,'0',21,43
     iretd
     
   _ClockHandler:
   ClockHandler equ _ClockHandler - $$
-    inc byte [fs:((80 * 20 + 40) * 2)]
+    pushad    ; `.
+    push  ds  ;  |
+    push  es  ;  | 保存原寄存器值
+    push  fs  ;  |
+    push  gs  ; /
+
+    inc byte [fs:((80 * 21 + 43) * 2)]
     mov al, 20h
     out 20h, al
+
+    pop gs  ; `.
+    pop fs  ;  |
+    pop es  ;  | 恢复原寄存器值
+    pop ds  ;  |
+    popad   ; /
+
     iretd
     
 
@@ -296,17 +329,18 @@ end_start_protected:
 BITS 32
 ALIGN 32
 start_funseg:
-  ;*** push 24msg, 20msg_len, 16row, 12column; call PrintLn_ 
+  ;*** push 24msg, 20msg_len, 16row, 12column; call printline
   ;*****************
+  tmp_ dd 0
 	printline:
 	  push  ebp
 	  mov ebp, esp
-	  push  ebx
+	  ;push  ebx
 	  push  esi
 	  push  edi
 	
 	  mov ecx, [ebp+16+4];len
-	  push 0
+    mov dword [tmp_],0 ;***XXX
 	.1:
 	  mov eax, [ebp+12+4];row=2
 	  mov edx, 80
@@ -315,21 +349,18 @@ start_funseg:
 	  shl eax, 1
 	  mov edi, eax
 	  mov edx, [ebp+20+4]
-	  pop ebx
-	  mov al, byte [edx+ebx]
+    mov ebx,[tmp_]
+	  mov al, byte [edx+ebx];*** access byte [edx+ebx] error
 	  mov ah, 0ch
 	  mov [fs:edi], ax
-	  inc ebx
-	  push ebx
-	  mov ebx, [ebp+8+4]
-	  inc ebx
-	  mov [ebp+8+4],ebx
+    inc dword [tmp_]
+    inc dword [ebp+8+4]
 	  LOOP .1
-    add esp,4 ; <=> pop ebx
+    mov dword [tmp_],0
 
 	  pop edi
 	  pop esi
-	  pop ebx
+	  ;pop ebx
 	  pop ebp
 	  retf
 
@@ -355,6 +386,40 @@ start_funseg:
 	  pop ebx
 	  pop ebp
 	  ret
+
+  ;*** void* MemCpy(void* es:pDest, void* ds:pSrc, int iSize);
+  memcpy:
+    push  ebp
+    mov ebp, esp
+    push  esi
+    push  edi
+    push  ecx
+  
+    mov edi, [ebp + 8]  ; Destination
+    mov esi, [ebp + 12] ; Source
+    mov ecx, [ebp + 16] ; Counter
+  .1:
+    cmp ecx, 0    ; 判断计数器
+    jz  .2    ; 计数器为零时跳出
+    mov al, [ds:esi]      ; ┓
+    inc esi               ; ┃
+                          ; ┣ 逐字节移动
+    mov byte [es:edi], al ; ┃
+    inc edi               ; ┛
+  
+    dec ecx   ; 计数器减一
+    jmp .1    ; 循环
+  .2:
+    mov eax, [ebp + 8]  ; 返回值
+  
+    pop ecx
+    pop edi
+    pop esi
+    mov esp, ebp
+    pop ebp
+    ret
+
+
 end_funseg:
 
 ;********************************************************
@@ -363,15 +428,8 @@ BITS 32
 align 32
 start_ring3code:
   ;*************??????????
-  ;PPrintLn pdata244, 25, 1
-  mov edi,(80*14+1)*2
-  mov al,'R'
-  mov ah,0Ah
-  mov [fs:edi],ax
-  mov edi,(80*14+2)*2
-  mov al,'3'
-  mov ah,0Ah
-  mov [fs:edi],ax
+  PRINTCHAR 0ah,'R',14,1
+  PRINTCHAR 0ah,'3',14,2
   call (GATE_1-GDT_1+SA_RPL3):0
   jmp $
 BSTRING pdata244, "I am under ring 3 now!"
@@ -383,15 +441,22 @@ BITS 32
 align 32
 start_gate:
   ;*************??????????
+  pushad    ; `.
+  push  ds  ;  |
+  push  es  ;  | 保存原寄存器值
+  push  fs  ;  |
+  push  gs  ; /
+  PPrintLn pdata262, 20, 10
+  pop gs  ;
+  pop fs  ;
+  pop es  ;
+  pop ds  ;
+  popad   ;
+  ;pushad
   ;PPrintLn pdata262, 26, 1
-  mov edi,(80*15+1)*2
-  mov al,'R'
-  mov ah,0Ah
-  mov [fs:edi],ax
-  mov edi,(80*15+2)*2
-  mov al,'0'
-  mov ah,0Ah
-  mov [fs:edi],ax
+  ;popad
+  PRINTCHAR 0ah,'R',14,10
+  PRINTCHAR 0ah,'0',14,11
   jmp (LDT_2-LDT_1+0100b):0 ;*** go to LDT code segment
 
   jmp $
@@ -469,3 +534,23 @@ align 32
 start_data:
   BSTRING p2data_, "I am proc 2 in ring 0: 0"
 end_data:
+
+
+
+
+
+
+
+  ;num2str:
+  ;  mov edx, 20014a7fh
+  ;  mov ebx, 10000000h
+  ;  mov ecx, 32
+  ;.1:
+  ;  mov eax, edx
+  ;  xor edx, edx
+  ;  div ebx; residual is in edx, eax is result
+  ;  and eax, 0fh
+  ;  mov byte[num_+32-ecx],al;***????????????????
+  ;  shr ebx, 4
+  ;  loop .1
+  ;num_ times 32 db 0

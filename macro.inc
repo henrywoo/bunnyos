@@ -62,4 +62,11 @@ int 10h   ; 10h 号中断
   mov byte [%1+7], ah
 %endmacro
 
+; color,char,row,column
+%macro PRINTCHAR 4
+    mov ah, %1
+    mov al, %2
+    mov [fs:((80 * %3 + %4) * 2)], ax
+%endmacro
+
 %define STARTLINE 1
