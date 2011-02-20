@@ -128,7 +128,9 @@ bunny_p %+ %1:
    edx_ %+ %1   dd 0
    ecx_ %+ %1   dd 0
    eax_ %+ %1   dd 0
+
    retaddr_ %+ %1 dd 0
+
    eip_ %+ %1     dd 0
    cs_ %+ %1      dd 0
    eflags_ %+ %1  dd 0
