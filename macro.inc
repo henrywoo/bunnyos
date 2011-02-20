@@ -50,7 +50,6 @@ int 10h   ; 10h 号中断
   push %2
   push %3
   call (GDT_8-GDT_1):(printline-start_funseg) ;*** far call
-  ;call PrintLn_
   add esp, 16
 %endmacro
 

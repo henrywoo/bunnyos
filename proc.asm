@@ -1,3 +1,10 @@
+
+OneMB equ 1024*1024
+STACKTOP equ 7C00h ; ~ 30K stack space
+STACKBOT equ 500h
+
+
+
 %macro ProcFrame 1
 bunny_p %+ %1:
    gs_ %+ %1    dd 0
@@ -32,7 +39,7 @@ bunny_p %+ %1 %+ _end:
 %macro DEFTSS 1
 %1:
   backlink  dd 0
-  esp0      dd 0
+  esp0      dd 0; top of stack of ring 0
   ss0       dd 0
   esp1      dd 0
   ss1       dd 0
@@ -58,5 +65,7 @@ bunny_p %+ %1 %+ _end:
   ldt_     dd 0
 
   trap_      dw 0
-  iobase_    dw 0
+  iobase_    dw $-%1+2 
+  DB 0ffh
+end_ %+ %1 :
 %endmacro
