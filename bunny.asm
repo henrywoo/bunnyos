@@ -175,46 +175,44 @@ start_pmr0code:
   %define r0addr(X) (X-start_pmr0data)
   _ClockHandler:
   ClockHandler equ _ClockHandler - $$
-    mov dx,sel_pmr0data
-    mov ds,dx
-
-    ;*** copy ss,esp,eflags,cs,eip to curPCB; save GR to curPCB
-    mov eax,dword[r0addr(curPCB)]
-    add eax,(PCB_len-4*1)
-    mov edx,[esp+4*4]
-    mov dword[eax], edx ; ss
-
-    sub eax,4
-    mov edx,[esp+4*3]
-    mov dword[eax], edx ; esp
-
-    sub eax,4
-    mov edx,[esp+4*2]
-    mov dword[eax], edx
-
-    sub eax,4
-    mov edx,[esp+4*1]
-    mov dword[eax], edx
-
-    sub eax,4
-    mov edx,[esp+4*0]
-    mov dword[eax], edx
-
-    mov dx, sel_pmr0data
-    mov ss, dx
-    mov esp, eax
-
     pushad  
     push  ds 
     push  es 
     push  fs
     push  gs
+
+    mov dx,sel_pmr0data
+    mov ds,dx
+
+    inc dword [r0addr(reenter)]
+    cmp dword [r0addr(reenter)],0
+    jne .re_enter
+
+    sti
+
+    mov eax,dword[r0addr(curPCB)]
+    add eax,(PCB_len)
+
+    mov ecx,(15-1)
+    .mmmove
+    sub eax,4
+    mov edx,[esp+ecx*4]
+    mov dword[eax], edx ; ss
+    loop .mmmove
+
+    ;sub eax,4
+    ;mov edx,[esp+(sep_1-gs_1)]
+    ;mov dword[eax], edx ; esp
     ;*** save proc1 status to PCB1 end...
 
-    ;inc dword [r0addr(reenter)]
+    mov dx, sel_pmr0data
+    mov ss, dx
+    mov esp, eax
+
 
     inc byte [fs:((80 * 1 + 3) * 2)]
     inc byte [fs:((80 * 1 + 13) * 2)]
+
     mov al, 20h
     out 20h, al
 
@@ -245,12 +243,13 @@ start_pmr0code:
   .end
     ;lldt ax
 
+    cli
+  .re_enter
     pop gs 
     pop fs
     pop es
     pop ds
     popad
-
     iretd
 
   _SpuriousHandler:
@@ -261,43 +260,6 @@ start_pmr0code:
     PRINTCHAR 0dh,'T',23,3
     ;jmp $
     iretd
-
-  ;*** void* MemCpy(void* es:pDest, void* ds:pSrc, int iSize);
-  ;push  size
-  ;push  src
-  ;push  dst
-  ;call  memcpy
-  ;add  esp, 12
-  memcpy:
-    push  ebp
-    mov ebp, esp
-    push  esi
-    push  edi
-    push  ecx
-  
-    mov edi, [ebp + 8]  ; Destination
-    mov esi, [ebp + 12] ; Source
-    mov ecx, [ebp + 16] ; Counter
-  .1:
-    cmp ecx, 0    ; 判断计数器
-    jz  .2    ; 计数器为零时跳出
-    mov al, [ds:esi]      ; ┓
-    inc esi               ; ┃
-                          ; ┣ 逐字节移动
-    mov byte [es:edi], al ; ┃
-    inc edi               ; ┛
-  
-    dec ecx   ; 计数器减一
-    jmp .1    ; 循环
-  .2:
-    mov eax, [ebp + 8]  ; 返回值
-  
-    pop ecx
-    pop edi
-    pop esi
-    mov esp, ebp
-    pop ebp
-    ret
 
   io_delay:
     nop
@@ -358,7 +320,7 @@ start_pmr0data:
   BSTRING email , "Email : wufuheng@gmail.com"
   BSTRING date  , "Date  : 2010-02-13"
   pos equ 1 ;pos equ (80-bmsg1_len)/2
-  reenter dd 0
+  reenter dd -1
   ProcFrame 1
   PCB_len equ $ - bunny_p1
   ProcFrame 2
@@ -408,7 +370,7 @@ start_ldt1code:
   PRINTCHAR 0eh,'P',1,1
   PRINTCHAR 0eh,'1',1,2
   PRINTCHAR 0eh,'.',1,3
-  ;call proc1
+  call proc1
   ;int 080h
   ;sti
   jmp $
@@ -442,7 +404,7 @@ start_ldt2code:
 	;  inc byte [fs:((80 * 1 + 12) * 2)]
   ;  nop
 	;  loop .1
-  ;call proc2
+  call proc2
   ;int 080h
   ;sti
   jmp $
