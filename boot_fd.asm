@@ -120,7 +120,7 @@ DispStr:
   mov  cx, MessageLength
   mov  ax, 01301h
   mov  bx, 000Ah
-  mov  dx, 0
+  mov  dx, 1
   int  10h
   ret
 

@@ -18,7 +18,7 @@ bits 32
 ALIGN 32
 GDT_1: Descriptor 0,0,0
 GDT_2: Descriptor 0B8000h, 32*1024-1, DA_DRW+DA_DPL3;***video
-GDT_3: Descriptor 0, (end_start_protected-start_protected-1), DA_CR+DA_32
+GDT_3: Descriptor 0, (end_protected-start_protected-1), DA_CR+DA_32
 GDT_4: Descriptor STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***kernel stack
 GDT_5: Descriptor 0, LDTLEN-1, DA_LDT ;LDT
 GDT_7: Descriptor 0, (endtss-starttss-1), DA_386TSS ;TSS
@@ -27,9 +27,9 @@ GDT_9: Descriptor OneMB, OneMB, DA_DRWA+DA_32 ;***1M process stack
 GDT_10: Descriptor 0, (end_gate-start_gate-1), DA_CR+DA_32 ;***ring0
 GDT_11: Descriptor 0, (end_data-start_data-1), DA_DRWA+DA_32;***data segment
 GDT_300: Descriptor 0, (end_ring3code-start_ring3code-1), DA_CR+DA_32+ DA_DPL3;*** Ring3 code seg(90M)
-GDT_301: Descriptor 10*OneMB, 1024*10, DA_DRWA+DA_32+DA_DPL3 ;*** Ring3 stack(10K)
+GDT_301: Descriptor 10*OneMB, SEG_MAXSIZE, DA_DRWA+DA_32+DA_DPL3 ;*** Ring3 stack(1MB-1) 
 
-GATE_1: Gate (GDT_10-GDT_1), 0, 0, DA_386CGate+DA_DPL3
+GATE_1: Gate (GDT_10-GDT_1+SA_RPL3), 0, 0, DA_386CGate+DA_DPL3
 
 GDTLEN equ $-GDT_1
 gdtptr  dw (GDTLEN - 1)
@@ -58,8 +58,8 @@ IDTPtr  dw IDTLEN-1
 BITS 32
 ALIGN 32
 start_ldt:
-LDT_1: Descriptor 0, (end_ldtcode1-start_ldtcode1), DA_CR+DA_32
-LDT_2: Descriptor 0, (end_ldtcode2-start_ldtcode2), DA_CR+DA_32
+LDT_1: Descriptor 0, (end_ldtcode1-start_ldtcode1-1), DA_CR+DA_32
+LDT_2: Descriptor 0, (end_ldtcode2-start_ldtcode2-1), DA_CR+DA_32
 
 LDTLEN equ $-LDT_1
 
@@ -70,10 +70,11 @@ ALIGN 32
 start_ldtcode1:
   PRINTCHAR 0eh,'P',14,10
   PRINTCHAR 0eh,'1',14,11
-  call proc1
-  int 080h
+  ;call proc1
+  ;int 080h
   sti
-  jmp $
+  ;jmp $
+  retf
   ;*** my first process in bunnyOS
 	proc1:
 	.1:
@@ -92,9 +93,10 @@ ALIGN 32
 start_ldtcode2:
   PRINTCHAR 0dh,'P',14,1
   PRINTCHAR 0dh,'2',14,2
-  ;call proc2
-  jmp (LDT_1-LDT_1+0100b):0
+  call proc2
+  ;jmp (LDT_1-LDT_1+0100b):0
   ;jmp $
+  retf
 
   ;*** my second process in bunnyOS
 	proc2:
@@ -108,6 +110,7 @@ end_ldtcode2:
 ;*********************************************************************
 [section TSSSEG]
 BITS 32
+ALIGN 32
 starttss:
   DEFTSS tss_ 
 endtss:
@@ -144,6 +147,7 @@ bunny_p %+ %1:
 bunny_p %+ %1 %+ _end:
 %endmacro
 
+
 ;*********************************************************************
 [section ProtectedMode]
 BITS 32
@@ -165,72 +169,143 @@ start_protected:
   PPrintLn email, 8, pos
   PPrintLn date,  9, pos
 
-  ; 2. TSS initialization, Loading TSS
-  mov dword [ss0], GDT_4-GDT_1
-  mov dword [esp0], (STACKTOP-STACKBOT-1)
-  mov ax, GDT_7-GDT_1
-  ltr ax
-  PPrintLn bmsg4, 11, pos
-
   ; 3. load LTD
   mov ax, (GDT_5-GDT_1)
   lldt ax
   PPrintLn bmsg5, 12, pos
   
-  jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT code segment
+  call Init8259A
+
+  ;jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT2
+  call (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT2
+  ;jmp (LDT_1-LDT_1 + 0100b):0 ;*** go to LDT1
+  call (LDT_1-LDT_1 + 0100b):0 ;*** go to LDT1
+
+  jmp $
 
   ; 4. init Interrupt
-  call Init8259A
+  ;call Init8259A
   ;int 080h
   ;sti; start interrupt
+  ;call io_delay
   ;jmp $
 
-  ; 5. *** init PCB
-  mov word [ldt_sel_1],(GDT_5-GDT_1); LDT Selector
-  mov dword [pid_1],1
-  ;mov dword [pid_1],'Proc1';memcpy
-  mov dword [cs_1],(LDT_1-LDT_1+0100b)
-  mov dword [ds_1],(LDT_2-LDT_1+0100b)
-  mov dword [es_1],(LDT_2-LDT_1+0100b)
-  mov dword [fs_1],(LDT_2-LDT_1+0100b)
-  mov dword [ss_1],(LDT_2-LDT_1+0100b)
+  ; 5. *** init PCB *** - > jmp to ???
   mov dword [gs_1],(LDT_2-LDT_1+0100b)
-  mov dword [fs_1],(GDT_2-GDT_1)
-  mov dword [eip_1],proc1 ;***???
-  mov dword [esp_1],esp ;***????
-  mov dword [eflags_1],1202h
+  mov dword [fs_1],(LDT_2-LDT_1+0100b)
+  mov dword [es_1],(GDT_2-GDT_1)
+  mov dword [ds_1],(LDT_2-LDT_1+0100b)
+  ;edi_1
+  ;esi_1
+  ;ebp_1
+  ;k_esp_1
+  ;ebx_1
+  ;edx_1
+  ;ecx_1
+  ;eax_1
+  ;retaddr_1
 
-  ;pop gs
-  ;pop fs
-  ;pop es
-  ;pop ds
-  ;popad
-  ;add esp,4
-  ;iretd
+  mov eax, dword [TestA]
+  mov dword [eip_1],eax ;***???
+  mov dword [cs_1],(LDT_1-LDT_1+0100b)
+  mov dword [eflags_1],1202h
+  mov dword [esp_1],esp ;***????
+  mov dword [ss_1],(LDT_2-LDT_1+0100b)
+
+  mov word [ldt_sel_1],(GDT_5-GDT_1);*** LDT Selector
+  mov dword [pid_1],1
+  mov dword [pname_1],'Proc1';memcpy
 
   ; 6. ring0 -> ring3
-  PPrintLn bmsg6, 13, pos
-  push GDT_301-GDT_1+SA_RPL3
-  push 1024-1
-  push GDT_300-GDT_1+SA_RPL3
-  push 0
+  ; 6.1 TSS initialization, Loading TSS
+  ;inc byte [p2data_]
+  ;PPrintLn p2data_, 0, 20
+  mov dword [ss0], GDT_4-GDT_1
+  mov dword [esp0], (STACKTOP-STACKBOT-1) ;***??????????
+  mov ax, GDT_7-GDT_1
+  ltr ax
+  ;PPrintLn bmsg4, 11, pos
+
+
+  ;PPrintLn bmsg6, 13, pos
+  push GDT_301-GDT_1+SA_RPL3  ;ss
+  push SEG_MAXSIZE                ;esp
+  push GDT_300-GDT_1+SA_RPL3  ;cs
+  push 0                      ;eip
   retf ;***jump to -> start_ring3code
 
+
+  ;call restart
   ; ... Continued ...
   jmp $
 
-  BSTRING bmsg1, "BunnyOS 1.0"
-  BSTRING bmsg2, "Protected Mode, ring 0"
-  BSTRING bmsg3, "Protected Mode, ring 3"
-  BSTRING bmsg4, "Load TSS..."
-  BSTRING bmsg5, "Load LDT..."
-  BSTRING bmsg6, "Entering ring 3..."
-  BSTRING bmsg7, "Interrupt happens!!!"
-  BSTRING author, "Author: Wu Fuheng"
-  BSTRING email , "Email : wufuheng@gmail.com"
-  BSTRING date  , "Date  : 2010-02-13"
-  ;pos equ (80-bmsg1_len)/2
-  pos equ 1
+
+  _SpuriousHandler:
+  SpuriousHandler equ _SpuriousHandler - $$
+    ;PPrintLn bmsg7, 17, pos
+    PRINTCHAR 0dh,'I',23,1
+    PRINTCHAR 0dh,'N',23,2
+    PRINTCHAR 0dh,'T',23,3
+    jmp $
+    iretd
+
+  _int80Handler:
+  int80Handler equ _int80Handler - $$
+    PRINTCHAR 0dh,'8',22,1
+    PRINTCHAR 0dh,'0',22,2
+    PRINTCHAR 0dh,':',22,3
+    PRINTCHAR 0dh,'0',22,4
+    iretd
+    
+  ;*** CPU process scheduling here
+  ;*** stack will change
+  _ClockHandler:
+  ClockHandler equ _ClockHandler - $$
+    pushad  
+    push  ds 
+    push  es 
+    push  fs
+    push  gs
+    ;inc dword [reint]
+
+    ;call (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT2
+    inc byte [fs:((80 * 0 + 10) * 2)]
+
+    mov al, 20h
+    out 20h, al
+
+    pop gs 
+    pop fs
+    pop es
+    pop ds
+    popad
+
+    ;dec dword [reint]
+    .1:
+    iretd
+
+  reint dd 0
+
+
+restart:
+  mov esp, bunny_p1
+  lea eax, [ss_1]
+  mov dword [ss0],eax
+  dec dword [reint]
+ 
+  pop gs
+  pop fs
+  pop es
+  pop ds
+  popad
+  add esp,4
+
+  iretd
+
+TestA:
+  PPrintLn bmsg8, 13, pos
+  
+    
 
   ;*** PCB - process control block
 	ProcFrame 1 ; bunny_p1
@@ -242,43 +317,20 @@ start_protected:
   %endrep
     ret
 
-  _SpuriousHandler:
-  SpuriousHandler equ _SpuriousHandler - $$
-    ;PPrintLn bmsg7, 17, pos
-    PRINTCHAR 0dh,'I',20,40
-    PRINTCHAR 0dh,'N',20,41
-    PRINTCHAR 0dh,'T',20,42
-    jmp $
-    iretd
+  BSTRING bmsg1, "BunnyOS 1.0"
+  BSTRING bmsg2, "Protected Mode, ring 0"
+  BSTRING bmsg3, "Protected Mode, ring 3"
+  BSTRING bmsg4, "Load TSS..."
+  BSTRING bmsg5, "Load LDT..."
+  BSTRING bmsg6, "Entering ring 3..."
+  BSTRING bmsg7, "Interrupt happens!!!"
+  BSTRING bmsg8, "This is TestAAAAAAAAAAAAAAAAAAAAAAA!"
+  BSTRING author, "Author: Wu Fuheng"
+  BSTRING email , "Email : wufuheng@gmail.com"
+  BSTRING date  , "Date  : 2010-02-13"
+  ;pos equ (80-bmsg1_len)/2
+  pos equ 1
 
-  _int80Handler:
-  int80Handler equ _int80Handler - $$
-    PRINTCHAR 0dh,'8',21,40
-    PRINTCHAR 0dh,'0',21,41
-    PRINTCHAR 0dh,':',21,42
-    PRINTCHAR 0dh,'0',21,43
-    iretd
-    
-  _ClockHandler:
-  ClockHandler equ _ClockHandler - $$
-    pushad    ; `.
-    push  ds  ;  |
-    push  es  ;  | 保存原寄存器值
-    push  fs  ;  |
-    push  gs  ; /
-
-    inc byte [fs:((80 * 21 + 43) * 2)]
-    mov al, 20h
-    out 20h, al
-
-    pop gs  ; `.
-    pop fs  ;  |
-    pop es  ;  | 恢复原寄存器值
-    pop ds  ;  |
-    popad   ; /
-
-    iretd
-    
 
 ;*** Init8259A ------------------------------------
 Init8259A:
@@ -324,7 +376,7 @@ Init8259A:
   ret
 
 
-end_start_protected:
+end_protected:
 
 ;*********************************************************************
 [section FuncSeg]
@@ -334,6 +386,7 @@ start_funseg:
   ;*** push 24msg, 20msg_len, 16row, 12column; call printline
   ;*****************
   tmp_ dd 0
+  line_ dd 5; starting from line 5
 	printline:
 	  push  ebp
 	  mov ebp, esp
@@ -343,8 +396,11 @@ start_funseg:
 	
 	  mov ecx, [ebp+16+4];len
     mov dword [tmp_],0 ;***XXX
+    ;mov dword [line_],[ebp+12+4]
+    inc dword [line_]
 	.1:
-	  mov eax, [ebp+12+4];row=2
+	  ;mov eax, [ebp+12+4];row=2
+	  mov eax, dword [line_];disregard parameter row 
 	  mov edx, 80
 	  mul edx ; mul will affect EDX!!!
 	  add eax, [ebp+8+4];column
@@ -429,45 +485,39 @@ end_funseg:
 BITS 32
 align 32
 start_ring3code:
-  ;*************??????????
-  PRINTCHAR 0ah,'R',14,1
-  PRINTCHAR 0ah,'3',14,2
+  PRINTCHAR 0ah,'R',1,1
+  PRINTCHAR 0ah,'3',1,2
   call (GATE_1-GDT_1+SA_RPL3):0
   jmp $
 BSTRING pdata244, "I am under ring 3 now!"
 end_ring3code:
 
+;%macro PPrintLn 3
+;  push %1
+;  push %1 %+ _len
+;  push %2
+;  push %3
+;  call (GDT_8-GDT_1):(printline-start_funseg) ;*** far call
+;  add esp, 16
+;%endmacro
 ;********************************************************
 [SECTION MyGate]
 BITS 32
-align 32
+ALIGN 32
 start_gate:
-  ;*************??????????
-  pushad    ; `.
-  push  ds  ;  |
-  push  es  ;  | 保存原寄存器值
-  push  fs  ;  |
-  push  gs  ; /
-  PPrintLn pdata262, 20, 10
-  pop gs  ;
-  pop fs  ;
-  pop es  ;
-  pop ds  ;
-  popad   ;
-  ;pushad
-  ;PPrintLn pdata262, 26, 1
-  ;popad
-  PRINTCHAR 0ah,'R',14,10
-  PRINTCHAR 0ah,'0',14,11
-  jmp (LDT_2-LDT_1+0100b):0 ;*** go to LDT code segment
+  ;mov al, byte [p2data_]
+  ;PPrintLn pdata262, 0, 10 ;*************??????????
+  PRINTCHAR 0eh,'R',1,10
+  PRINTCHAR 0eh,'0',1,11
+  ;jmp (LDT_2-LDT_1+0100b):0 ;*** go to LDT code segment
 
   jmp $
-BSTRING pdata262, "Return to ring 0"
+BSTRING pdata262, "Return to ring 0..."
 end_gate:
 
 ;********************************************************
-BITS 16
 [section RealAddressMode]
+BITS 16
 start_real:
 
   ;*** Get Memory from int 15
