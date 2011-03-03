@@ -150,12 +150,14 @@ start_pmr0code:
   mov dword[ds_1],sel_ldt1data
   mov dword[cs_1],sel_ldt1code
   mov dword[ss_1],sel_ldt1stack
+  mov dword[sel_ldt1_],sel_ldt1
 
   ;***init PCB2
   mov dword[ds_2],sel_ldt2data
   mov dword[cs_2],sel_ldt2code
   mov dword[ss_2],sel_ldt2stack
   mov dword[esp_2],stacktop_ldt2
+  mov dword[sel_ldt2_],sel_ldt2
 
   mov dword[curPCB],bunny_p1-start_pmr0data
   mov dword[nexPCB],bunny_p2-start_pmr0data
@@ -168,50 +170,39 @@ start_pmr0code:
   push 0
   retf
 
-.2:
-  ;mov dword[curPCB],bunny_p2
-  ;mov ax, sel_ldt2
-  ;lldt ax
-  ;push sel_ldt2stack
-  ;push stacktop_ldt2
-  ;push sel_ldt2code
-  ;push 0
-  ;retf
-
   jmp $
-
     
   %define r0addr(X) (X-start_pmr0data)
   _ClockHandler:
   ClockHandler equ _ClockHandler - $$
-    xor edx,edx
     mov dx,sel_pmr0data
     mov ds,dx
 
     ;*** copy ss,esp,eflags,cs,eip to curPCB; save GR to curPCB
+    mov eax,dword[r0addr(curPCB)]
+    add eax,(PCB_len-4*1)
     mov edx,[esp+4*4]
+    mov dword[eax], edx ; ss
 
-    ;mov eax,dword[r0addr(curPCB)]
-    ;add eax,(PCB_len-4*1)
-    ;mov edx,[esp+4*4]
-    ;mov dword[eax], edx
-
-    mov dword[r0addr(bunny_p2)-4*1],edx
+    sub eax,4
     mov edx,[esp+4*3]
-    mov dword[r0addr(bunny_p2)-4*2],edx
+    mov dword[eax], edx ; esp
+
+    sub eax,4
     mov edx,[esp+4*2]
-    mov dword[r0addr(bunny_p2)-4*3],edx
+    mov dword[eax], edx
+
+    sub eax,4
     mov edx,[esp+4*1]
-    mov dword[r0addr(bunny_p2)-4*4],edx
+    mov dword[eax], edx
+
+    sub eax,4
     mov edx,[esp+4*0]
-    mov dword[r0addr(bunny_p2)-4*5],edx
-    ;mov dword[r0addr(curPCB)+PCB_len-4*4],edx
-    
+    mov dword[eax], edx
+
     mov dx, sel_pmr0data
     mov ss, dx
-    ;mov edx, dword[curPCB+PCB_len-4*6]
-    mov edx, r0addr(bunny_p2)-4*5
-    mov esp, edx
+    mov esp, eax
 
     pushad  
     push  ds 
@@ -220,23 +211,26 @@ start_pmr0code:
     push  gs
     ;*** save proc1 status to PCB1 end...
 
-    inc dword [r0addr(reenter)]
+    ;inc dword [r0addr(reenter)]
 
     inc byte [fs:((80 * 1 + 3) * 2)]
     inc byte [fs:((80 * 1 + 13) * 2)]
     mov al, 20h
     out 20h, al
 
-
-    mov dx, sel_ldt2
-    lldt dx
-
-    ;mov dx, sel_pmr0data
-    ;mov ss, dx
-    mov edx, r0addr(bunny_p2);***TODO
+    mov edx, dword[r0addr(nexPCB)]
     mov esp, edx
 
-    mov dword[r0addr(curPCB)],bunny_p2
+    mov ax, sel_ldt2
+    mov eax, dword[r0addr(nexPCB)]
+    add eax, (sel_ldt1_-gs_1)
+    mov dx, word [eax]
+    lldt dx
+
+    mov eax, dword[r0addr(curPCB)]
+    mov edx, dword[r0addr(nexPCB)]
+    mov dword[r0addr(nexPCB)],eax
+    mov dword[r0addr(curPCB)],edx
     
     ;mov eax, dword[r0addr(reenter)]
     ;and eax,1
@@ -267,6 +261,43 @@ start_pmr0code:
     PRINTCHAR 0dh,'T',23,3
     ;jmp $
     iretd
+
+  ;*** void* MemCpy(void* es:pDest, void* ds:pSrc, int iSize);
+  ;push  size
+  ;push  src
+  ;push  dst
+  ;call  memcpy
+  ;add  esp, 12
+  memcpy:
+    push  ebp
+    mov ebp, esp
+    push  esi
+    push  edi
+    push  ecx
+  
+    mov edi, [ebp + 8]  ; Destination
+    mov esi, [ebp + 12] ; Source
+    mov ecx, [ebp + 16] ; Counter
+  .1:
+    cmp ecx, 0    ; 判断计数器
+    jz  .2    ; 计数器为零时跳出
+    mov al, [ds:esi]      ; ┓
+    inc esi               ; ┃
+                          ; ┣ 逐字节移动
+    mov byte [es:edi], al ; ┃
+    inc edi               ; ┛
+  
+    dec ecx   ; 计数器减一
+    jmp .1    ; 循环
+  .2:
+    mov eax, [ebp + 8]  ; 返回值
+  
+    pop ecx
+    pop edi
+    pop esi
+    mov esp, ebp
+    pop ebp
+    ret
 
   io_delay:
     nop
