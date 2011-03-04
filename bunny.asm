@@ -175,6 +175,8 @@ start_pmr0code:
   %define r0addr(X) (X-start_pmr0data)
   _ClockHandler:
   ClockHandler equ _ClockHandler - $$
+    ;mov ax,0
+    ;iretd
     pushad  
     push  ds 
     push  es 
@@ -199,16 +201,7 @@ start_pmr0code:
     mov edx,[esp+ecx*4]
     mov dword[eax], edx ; ss
     loop .mmmove
-
-    ;sub eax,4
-    ;mov edx,[esp+(sep_1-gs_1)]
-    ;mov dword[eax], edx ; esp
     ;*** save proc1 status to PCB1 end...
-
-    mov dx, sel_pmr0data
-    mov ss, dx
-    mov esp, eax
-
 
     inc byte [fs:((80 * 1 + 3) * 2)]
     inc byte [fs:((80 * 1 + 13) * 2)]
@@ -216,33 +209,21 @@ start_pmr0code:
     mov al, 20h
     out 20h, al
 
+    mov dx, sel_pmr0data
+    mov ss, dx
+    ;mov esp, eax
     mov edx, dword[r0addr(nexPCB)]
     mov esp, edx
 
-    mov ax, sel_ldt2
-    mov eax, dword[r0addr(nexPCB)]
-    add eax, (sel_ldt1_-gs_1)
-    mov dx, word [eax]
-    lldt dx
+    add edx, (sel_ldt1_-gs_1)
+    mov ax, word [edx]
+    lldt ax
 
     mov eax, dword[r0addr(curPCB)]
     mov edx, dword[r0addr(nexPCB)]
     mov dword[r0addr(nexPCB)],eax
     mov dword[r0addr(curPCB)],edx
     
-    ;mov eax, dword[r0addr(reenter)]
-    ;and eax,1
-    ;cmp eax,1
-    ;jne .11
-
-    ;mov ax, sel_ldt1;2
-    ;jmp .end
-  .11
-    ;mov ax, sel_ldt1
-
-  .end
-    ;lldt ax
-
     cli
   .re_enter
     pop gs 
@@ -262,7 +243,9 @@ start_pmr0code:
     iretd
 
   io_delay:
+    %rep 100
     nop
+    %endrep
     ret
 
   ;*** Init8259A ------------------------------------
@@ -379,6 +362,9 @@ start_ldt1code:
 	proc1:
 	.1:
 	  inc byte [fs:((80 * 1 + 3) * 2)]
+    %rep 100
+    nop
+    %endrep
 	  jmp .1
 	  ret
 ldt1code_len equ $-start_ldt1code
@@ -403,8 +389,8 @@ start_ldt2code:
 	;.1:
 	;  inc byte [fs:((80 * 1 + 12) * 2)]
   ;  nop
-	;  loop .1
-  call proc2
+	;  jmp .1
+  ;call proc2
   ;int 080h
   ;sti
   jmp $
