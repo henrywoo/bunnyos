@@ -67,6 +67,8 @@ start_real:
   DTBaseEqual ldt4_1,start_ldt4code
   DTBaseEqual ldt4_2,start_ldt4data
 
+  DTBaseEqual GDT_r3text,start_r3text
+
   ; 1. load gdt
   lgdt [gdtptr]
 
@@ -106,6 +108,7 @@ GDT_7: Descriptor 0, ldt1_len-1, DA_LDT;+DA_DPL3; ldt1
 GDT_8: Descriptor 0, ldt2_len-1, DA_LDT;+DA_DPL3; ldt2
 GDT_9: Descriptor 0, ldt3_len-1, DA_LDT;+DA_DPL3; ldt3
 GDT_10: Descriptor 0, ldt4_len-1, DA_LDT;+DA_DPL3; ldt4;***simon
+GDT_r3text: Descriptor 0, r3text_len-1, DA_CR+DA_32+DA_DPL3;***ring 3 code/text/function/syscall
 
 gdt_len equ $-GDT_1
 gdtptr  dw (gdt_len - 1)
@@ -121,18 +124,21 @@ sel_ldt2      equ GDT_8-GDT_1+011b
 sel_ldt3      equ GDT_9-GDT_1+011b
 sel_ldt4      equ GDT_10-GDT_1+011b;***simon
 
+sel_r3text    equ GDT_r3text-GDT_1+011b
+
 ;********************************************************
 [section IDT]
 BITS 32
 ALIGN 32
 start_idt:
-%rep 32
-        Gate GDT_3-GDT_1,SpuriousHandler, 0,DA_386IGate
+%rep 20h
+        Gate sel_pmr0code,SpuriousHandler, 0,DA_386IGate
 %endrep
-.020h:  Gate GDT_3-GDT_1,ClockHandler,    0,DA_386IGate
-%rep 223
-        Gate GDT_3-GDT_1,SpuriousHandler, 0,DA_386IGate
+.020h:  Gate sel_pmr0code,ClockHandler,    0,DA_386IGate
+%rep 6fh
+        Gate sel_pmr0code,SpuriousHandler, 0,DA_386IGate
 %endrep
+.090h:  Gate sel_pmr0code,JiffiesHandler,  0,DA_386IGate;+DA_DPL3
 
 idt_len  equ $-start_idt
 idtptr  dw idt_len-1
@@ -146,6 +152,9 @@ start_tss:
   backlink  dd 0
   esp0      dd STACKTOP-STACKBOT-1; top of stack of ring 0
   ss0       dd sel_pmr0stack
+%ifndef SHORTER_CODE
+  times 22 dd 0
+%else
   esp1      dd 0
   ss1       dd 0
   esp2      dd 0
@@ -168,6 +177,7 @@ start_tss:
   fs_      dd 0
   gs_      dd 0
   ldt_     dd 0
+%endif
 
   trap_      dw 0
   iobase_    dw $-start_tss+2 
@@ -231,6 +241,8 @@ start_pmr0code:
   mov ax, sel_ldt1
   lldt ax
 
+  ;int 90h
+
   push sel_ldt1stack
   push d_proc_stacksize
   push sel_ldt1code
@@ -250,7 +262,7 @@ start_pmr0code:
     mov dx,sel_pmr0data
     mov ds,dx
 
-    inc dword [r0addr(jiffies)]
+    inc dword [r0addr(jiffies)] ;*** add jiffies
     inc dword [r0addr(reenter)]
     cmp dword [r0addr(reenter)],0
     jne .reentry
@@ -261,7 +273,6 @@ start_pmr0code:
     mov al, 20h
     out 20h, al
 
-
     mov ax, sel_pmr0data
     mov ss, ax
     mov edx, dword[r0addr(curPCB)]
@@ -270,10 +281,10 @@ start_pmr0code:
     JA .3
     mov esp, edx
     jmp .4
-.3: 
+  .3: 
     mov edx, r0addr(PCBSTART)
     mov esp, edx
-.4:
+  .4:
     add edx, (sel_ldt1_-gs_1)
     mov bx, word [edx]
     lldt bx
@@ -284,14 +295,11 @@ start_pmr0code:
     jbe .1
     add dword[r0addr(curPCB)],PCB_len
     jmp .2
-.1:
+  .1:
     mov dword[r0addr(curPCB)],r0addr(PCBSTART)
-.2:
-
-
-
+  .2:
     cli
-.reentry:
+  .reentry:
     dec dword [r0addr(reenter)]
     pop gs 
     pop fs
@@ -300,12 +308,12 @@ start_pmr0code:
     popad
     iretd
 
-FillPCB:
+  FillPCB:
     add esp, 4
     mov ebx,dword[r0addr(curPCB)]
     add ebx,(sel_ldt1_-gs_1);*** = 0x44 
     mov ecx,(sel_ldt1_-gs_1)/4 ;*** = 0x11
-.mmmove:
+  .mmmove:
     sub ebx,4
     mov edx,[esp+ecx*4-4]
     mov dword[ebx], edx
@@ -320,6 +328,21 @@ FillPCB:
     PRINTCHAR 0dh,'N',23,2
     PRINTCHAR 0dh,'T',23,3
     ;jmp $
+    iretd
+
+  _JiffiesHandler:
+  JiffiesHandler equ _JiffiesHandler - $$
+    pushad  
+    push  ds 
+    push  es 
+    push  fs
+    push  gs
+    ;mov eax, dword[r0addr(jiffies)]
+    pop gs 
+    pop fs
+    pop es
+    pop ds
+    popad
     iretd
 
   io_delay:
@@ -361,11 +384,24 @@ FillPCB:
     call  io_delay
     ret
 
-
-
 pmr0code_len equ $-start_pmr0code
 
 
+;*********************************************************************
+[SECTION r3text]
+BITS 32
+ALIGN 32
+start_r3text:
+
+  _syscall_get_jiffies equ 0
+  iv_get_jiffies equ 90h
+
+  get_jiffies:
+    mov eax, _syscall_get_jiffies
+    int iv_get_jiffies
+    ret
+
+r3text_len equ $-start_r3text
 
 
 ;*********************************************************************
@@ -545,11 +581,8 @@ start_ldt4code:
   PRINTCHAR 0ch,'P',1,30
   PRINTCHAR 0ch,'4',1,31
   PRINTCHAR 0ch,'0',1,32
-	.1:
-	  inc byte [fs:((80 * 1 + 32) * 2)]
-    nop
-	  jmp .1
-  ;call proc2
+  int 90h
+  call proc4
   ;int 080h
   ;sti
   jmp $
