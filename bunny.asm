@@ -138,7 +138,7 @@ start_idt:
 %rep 6fh
         Gate sel_pmr0code,SpuriousHandler, 0,DA_386IGate
 %endrep
-.090h:  Gate sel_pmr0code,JiffiesHandler,  0,DA_386IGate;+DA_DPL3
+.090h:  Gate sel_pmr0code,JiffiesHandler,  0,DA_386IGate+DA_DPL3
 
 idt_len  equ $-start_idt
 idtptr  dw idt_len-1
