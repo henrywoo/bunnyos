@@ -28,6 +28,7 @@ PCBLAST:
 PCBEND:
   curPCB dd 0
   reenter dd -1
+  jiffies dd 0
 
   BSTRING bmsg1, "BunnyOS 1.0"
   BSTRING bmsg2, "Protected Mode, ring 0"
@@ -249,7 +250,7 @@ start_pmr0code:
     mov dx,sel_pmr0data
     mov ds,dx
 
-    ;mov eax, esp
+    inc dword [r0addr(jiffies)]
     inc dword [r0addr(reenter)]
     cmp dword [r0addr(reenter)],0
     jne .reentry
