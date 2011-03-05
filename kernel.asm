@@ -35,6 +35,7 @@ GDTLEN equ $-GDT_1
 gdtptr  dw (GDTLEN - 1)
         dd (GDT_1)
 
+sel_video     equ GDT_2-GDT_1+011b
 [section .idt]
 bits 32
 ALIGN 32
@@ -70,9 +71,13 @@ ALIGN 32
 start_ldtcode1:
   PRINTCHAR 0eh,'P',14,10
   PRINTCHAR 0eh,'1',14,11
+	.2:
+	  inc byte [fs:((80 * 0 + 1) * 2)]
+    nop
+	  jmp .2
   ;call proc1
   ;int 080h
-  sti
+  ;sti
   ;jmp $
   retf
   ;*** my first process in bunnyOS
@@ -93,6 +98,10 @@ ALIGN 32
 start_ldtcode2:
   PRINTCHAR 0dh,'P',14,1
   PRINTCHAR 0dh,'2',14,2
+	.2:
+	  inc byte [fs:((80 * 0 + 2) * 2)]
+    nop
+	  jmp .2
   call proc2
   ;jmp (LDT_1-LDT_1+0100b):0
   ;jmp $
@@ -112,40 +121,37 @@ end_ldtcode2:
 BITS 32
 ALIGN 32
 starttss:
-  DEFTSS tss_ 
+  backlink  dd 0
+  esp0      dd STACKTOP-STACKBOT-1; top of stack of ring 0
+  ss0       dd 0
+  esp1      dd 0
+  ss1       dd 0
+  esp2      dd 0
+  ss2       dd 0
+  cr3_      dd 0
+  eip_      dd 0
+  flags     dd 0
+  eax_      dd 0
+  ecx_      dd 0
+  edx_      dd 0
+  ebx_      dd 0
+  esp_      dd 0
+  ebp_      dd 0
+  esi_      dd 0
+  edi_      dd 0
+  es_      dd 0
+  cs_      dd 0
+  ss_      dd 0
+  ds_      dd 0
+  fs_      dd 0
+  gs_      dd 0
+  ldt_     dd 0
+
+  trap_      dw 0
+  iobase_    dw $-starttss+2 
+  DB 0ffh
 endtss:
-
-
-%macro ProcFrame 1
-bunny_p %+ %1:
-
-   gs_ %+ %1    dd 0
-   fs_ %+ %1    dd 0
-   es_ %+ %1    dd 0
-   ds_ %+ %1    dd 0
-   edi_ %+ %1   dd 0
-   esi_ %+ %1   dd 0
-   ebp_ %+ %1   dd 0
-   k_esp_ %+ %1 dd 0
-   ebx_ %+ %1   dd 0
-   edx_ %+ %1   dd 0
-   ecx_ %+ %1   dd 0
-   eax_ %+ %1   dd 0
-
-   retaddr_ %+ %1 dd 0
-
-   eip_ %+ %1     dd 0
-   cs_ %+ %1      dd 0
-   eflags_ %+ %1  dd 0
-   esp_ %+ %1     dd 0
-   ss_ %+ %1      dd 0
-
-   ldt_sel_ %+ %1  dw 0
-   pid_ %+ %1      dd 0
-   pname_ %+ %1 times 16 db 0
-
-bunny_p %+ %1 %+ _end:
-%endmacro
+tss_len equ $-starttss
 
 
 ;*********************************************************************
@@ -175,6 +181,7 @@ start_protected:
   PPrintLn bmsg5, 12, pos
   
   call Init8259A
+  sti
 
   ;jmp (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT2
   call (LDT_2-LDT_1 + 0100b):0 ;*** go to LDT2
@@ -212,7 +219,7 @@ start_protected:
   mov dword [esp_1],esp ;***????
   mov dword [ss_1],(LDT_2-LDT_1+0100b)
 
-  mov word [ldt_sel_1],(GDT_5-GDT_1);*** LDT Selector
+  mov word [sel_ldt1_],(GDT_5-GDT_1);*** LDT Selector
   mov dword [pid_1],1
   mov dword [pname_1],'Proc1';memcpy
 
@@ -312,7 +319,7 @@ TestA:
 	ProcFrame 2 ; bunny_p2
 
   io_delay:
-  %rep 1024
+  %rep 1
    nop
   %endrep
     ret
@@ -337,42 +344,32 @@ Init8259A:
   mov al, 011h
   out 020h, al  ; 主8259, ICW1.
   call  io_delay
-
   out 0A0h, al  ; 从8259, ICW1.
   call  io_delay
-
   mov al, 020h  ; IRQ0 对应中断向量 0x20
   out 021h, al  ; 主8259, ICW2.
   call  io_delay
-
   mov al, 028h  ; IRQ8 对应中断向量 0x28
   out 0A1h, al  ; 从8259, ICW2.
   call  io_delay
-
   mov al, 004h  ; IR2 对应从8259
   out 021h, al  ; 主8259, ICW3.
   call  io_delay
-
   mov al, 002h  ; 对应主8259的 IR2
   out 0A1h, al  ; 从8259, ICW3.
   call  io_delay
-
   mov al, 001h
   out 021h, al  ; 主8259, ICW4.
   call  io_delay
-
   out 0A1h, al  ; 从8259, ICW4.
   call  io_delay
-
   ;mov  al, 11111111b ; 屏蔽主8259所有中断
   mov al, 11111110b ; 仅仅开启定时器中断
   out 021h, al  ; 主8259, OCW1.
   call  io_delay
-
   mov al, 11111111b ; 屏蔽从8259所有中断
   out 0A1h, al  ; 从8259, OCW1.
   call  io_delay
-
   ret
 
 

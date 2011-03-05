@@ -6,6 +6,34 @@
 org KERNELADDRABS
 jmp start_real
 
+;*********************************************************************
+[SECTION PMR0DATA]
+BITS 32
+ALIGN 32
+start_pmr0data:
+
+  ProcFrame 1
+  PCB_len equ $ - bunny_p1
+  ProcFrame 2
+  curPCB dd 0
+  nexPCB dd 0
+  reenter dd -1
+
+  BSTRING bmsg1, "BunnyOS 1.0"
+  BSTRING bmsg2, "Protected Mode, ring 0"
+  BSTRING bmsg3, "Protected Mode, ring 3"
+  BSTRING bmsg4, "Load TSS..."
+  BSTRING bmsg5, "Load LDT..."
+  BSTRING bmsg6, "Entering ring 3..."
+  BSTRING bmsg7, "Interrupt happens!!!"
+  BSTRING bmsg8, "This is TestAAAAAAAAAAAAAAAAAAAAAAA!"
+  BSTRING author, "Author: Wu Fuheng"
+  BSTRING email , "Email : wufuheng@gmail.com"
+  BSTRING date  , "Date  : 2010-02-13"
+  pos equ 1 ;pos equ (80-bmsg1_len)/2
+pmr0data_len equ $ - start_pmr0data
+
+
 ;********************************************************
 [section RealAddressMode]
 BITS 16
@@ -145,25 +173,28 @@ start_pmr0code:
   mov ax, sel_tss
   ltr ax
 
-.proc1:
   ;***init PCB1
   mov dword[ds_1],sel_ldt1data
   mov dword[cs_1],sel_ldt1code
+  mov dword[eflags_1],1202h
+  mov dword[esp_1],stacktop_ldt1 ;***???
   mov dword[ss_1],sel_ldt1stack
-  mov dword[sel_ldt1_],sel_ldt1
+  mov word[sel_ldt1_],sel_ldt1
 
   ;***init PCB2
   mov dword[ds_2],sel_ldt2data
   mov dword[cs_2],sel_ldt2code
-  mov dword[ss_2],sel_ldt2stack
+  mov dword[eflags_2],1202h
   mov dword[esp_2],stacktop_ldt2
-  mov dword[sel_ldt2_],sel_ldt2
+  mov dword[ss_2],sel_ldt2stack
+  mov word[sel_ldt2_],sel_ldt2
 
   mov dword[curPCB],bunny_p1-start_pmr0data
   mov dword[nexPCB],bunny_p2-start_pmr0data
 
   mov ax, sel_ldt1
   lldt ax
+
   push sel_ldt1stack
   push stacktop_ldt1
   push sel_ldt1code
@@ -175,8 +206,6 @@ start_pmr0code:
   %define r0addr(X) (X-start_pmr0data)
   _ClockHandler:
   ClockHandler equ _ClockHandler - $$
-    ;mov ax,0
-    ;iretd
     pushad  
     push  ds 
     push  es 
@@ -192,45 +221,44 @@ start_pmr0code:
 
     sti
 
-    mov eax,dword[r0addr(curPCB)]
-    add eax,(PCB_len)
-
-    mov ecx,(15-1)
-    .mmmove
-    sub eax,4
-    mov edx,[esp+ecx*4]
-    mov dword[eax], edx ; ss
+    mov ebx,dword[r0addr(curPCB)]
+    add ebx,(sel_ldt1_-gs_1);*** = 0x44 
+    mov ecx,(sel_ldt1_-gs_1)/4 ;*** = 0x11
+  .mmmove:
+    sub ebx,4
+    mov edx,[esp+ecx*4-4]
+    mov dword[ebx], edx
     loop .mmmove
     ;*** save proc1 status to PCB1 end...
 
-    inc byte [fs:((80 * 1 + 3) * 2)]
-    inc byte [fs:((80 * 1 + 13) * 2)]
-
+    ;inc byte [fs:((80 * 1 + 3) * 2)]
+    ;inc byte [fs:((80 * 1 + 13) * 2)]
     mov al, 20h
     out 20h, al
 
     mov dx, sel_pmr0data
     mov ss, dx
-    ;mov esp, eax
     mov edx, dword[r0addr(nexPCB)]
     mov esp, edx
 
     add edx, (sel_ldt1_-gs_1)
-    mov ax, word [edx]
-    lldt ax
+    mov bx, word [edx]
+    lldt bx
 
-    mov eax, dword[r0addr(curPCB)]
+    mov ebx, dword[r0addr(curPCB)]
     mov edx, dword[r0addr(nexPCB)]
-    mov dword[r0addr(nexPCB)],eax
+    mov dword[r0addr(nexPCB)],ebx
     mov dword[r0addr(curPCB)],edx
     
     cli
-  .re_enter
+  .re_enter:
+    dec dword [r0addr(reenter)]
     pop gs 
     pop fs
     pop es
     pop ds
     popad
+
     iretd
 
   _SpuriousHandler:
@@ -243,7 +271,7 @@ start_pmr0code:
     iretd
 
   io_delay:
-    %rep 100
+    %rep 10
     nop
     %endrep
     ret
@@ -285,32 +313,7 @@ start_pmr0code:
 
 pmr0code_len equ $-start_pmr0code
 
-;*********************************************************************
-[SECTION PMR0DATA]
-BITS 32
-ALIGN 32
-start_pmr0data:
 
-  BSTRING bmsg1, "BunnyOS 1.0"
-  BSTRING bmsg2, "Protected Mode, ring 0"
-  BSTRING bmsg3, "Protected Mode, ring 3"
-  BSTRING bmsg4, "Load TSS..."
-  BSTRING bmsg5, "Load LDT..."
-  BSTRING bmsg6, "Entering ring 3..."
-  BSTRING bmsg7, "Interrupt happens!!!"
-  BSTRING bmsg8, "This is TestAAAAAAAAAAAAAAAAAAAAAAA!"
-  BSTRING author, "Author: Wu Fuheng"
-  BSTRING email , "Email : wufuheng@gmail.com"
-  BSTRING date  , "Date  : 2010-02-13"
-  pos equ 1 ;pos equ (80-bmsg1_len)/2
-  reenter dd -1
-  ProcFrame 1
-  PCB_len equ $ - bunny_p1
-  ProcFrame 2
-  curPCB dd 0
-  nexPCB dd 0
-
-pmr0data_len equ $ - start_pmr0data
 
 
 ;*********************************************************************
@@ -352,8 +355,12 @@ ALIGN 32
 start_ldt1code:
   PRINTCHAR 0eh,'P',1,1
   PRINTCHAR 0eh,'1',1,2
-  PRINTCHAR 0eh,'.',1,3
-  call proc1
+  PRINTCHAR 0eh,'0',1,3
+	.1:
+	  inc byte [fs:((80 * 1 + 3) * 2)]
+    nop
+	  jmp .1
+  ;call proc1
   ;int 080h
   ;sti
   jmp $
@@ -385,11 +392,11 @@ ALIGN 32
 start_ldt2code:
   PRINTCHAR 0eh,'P',1,10
   PRINTCHAR 0eh,'2',1,11
-  PRINTCHAR 0eh,'.',1,12
-	;.1:
-	;  inc byte [fs:((80 * 1 + 12) * 2)]
-  ;  nop
-	;  jmp .1
+  PRINTCHAR 0eh,'0',1,12
+	.1:
+	  inc byte [fs:((80 * 1 + 12) * 2)]
+    nop
+	  jmp .1
   ;call proc2
   ;int 080h
   ;sti
