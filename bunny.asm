@@ -7,6 +7,12 @@ org KERNELADDRABS
 jmp start_real
 
 %define r0addr(X) (X-start_pmr0data)
+pos equ 1 ;pos equ (80-bmsg1_len)/2
+
+;*** default value setting ***
+d_eflags equ 1202h
+d_proc_stacksize equ 64*1024-1
+
 ;*********************************************************************
 [SECTION PMR0DATA]
 BITS 32
@@ -16,8 +22,9 @@ PCBSTART:
   ProcFrame 1
   PCB_len equ $ - bunny_p1
   ProcFrame 2
-PCBLAST:
   ProcFrame 3
+PCBLAST:
+  ProcFrame 4;***simon
 PCBEND:
   curPCB dd 0
   reenter dd -1
@@ -33,7 +40,6 @@ PCBEND:
   BSTRING author, "Author: Wu Fuheng"
   BSTRING email , "Email : wufuheng@gmail.com"
   BSTRING date  , "Date  : 2010-02-13"
-  pos equ 1 ;pos equ (80-bmsg1_len)/2
 pmr0data_len equ $ - start_pmr0data
 
 
@@ -47,13 +53,18 @@ start_real:
   DTBaseEqual GDT_6,start_tss
   DTBaseEqual GDT_7,start_ldt1
   DTBaseEqual GDT_8,start_ldt2
+  DTBaseEqual ldt1_1,start_ldt1code
+  DTBaseEqual ldt1_2,start_ldt1data
+  DTBaseEqual ldt2_1,start_ldt2code
+  DTBaseEqual ldt2_2,start_ldt2data
+
   DTBaseEqual GDT_9,start_ldt3
-  DTBaseEqual LDT1_1,start_ldt1code
-  DTBaseEqual LDT1_2,start_ldt1data
-  DTBaseEqual LDT2_1,start_ldt2code
-  DTBaseEqual LDT2_2,start_ldt2data
-  DTBaseEqual LDT3_1,start_ldt3code
-  DTBaseEqual LDT3_2,start_ldt3data
+  DTBaseEqual ldt3_1,start_ldt3code
+  DTBaseEqual ldt3_2,start_ldt3data
+
+  DTBaseEqual GDT_10,start_ldt4;***simon
+  DTBaseEqual ldt4_1,start_ldt4code
+  DTBaseEqual ldt4_2,start_ldt4data
 
   ; 1. load gdt
   lgdt [gdtptr]
@@ -90,9 +101,10 @@ GDT_3: Descriptor 0, (pmr0code_len-1), DA_CR+DA_32;***code
 GDT_4: Descriptor 0, (pmr0data_len-1), DA_DRWA+DA_32 ;***data
 GDT_5: Descriptor STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***stack
 GDT_6: Descriptor 0, (tss_len-1), DA_386TSS ;TSS
-GDT_7: Descriptor 0, ldt1_len-1, DA_LDT;+DA_DPL3; LDT1
-GDT_8: Descriptor 0, ldt2_len-1, DA_LDT;+DA_DPL3; LDT2
-GDT_9: Descriptor 0, ldt3_len-1, DA_LDT;+DA_DPL3; LDT3
+GDT_7: Descriptor 0, ldt1_len-1, DA_LDT;+DA_DPL3; ldt1
+GDT_8: Descriptor 0, ldt2_len-1, DA_LDT;+DA_DPL3; ldt2
+GDT_9: Descriptor 0, ldt3_len-1, DA_LDT;+DA_DPL3; ldt3
+GDT_10: Descriptor 0, ldt4_len-1, DA_LDT;+DA_DPL3; ldt4;***simon
 
 gdt_len equ $-GDT_1
 gdtptr  dw (gdt_len - 1)
@@ -106,6 +118,7 @@ sel_tss       equ GDT_6-GDT_1
 sel_ldt1      equ GDT_7-GDT_1+011b
 sel_ldt2      equ GDT_8-GDT_1+011b
 sel_ldt3      equ GDT_9-GDT_1+011b
+sel_ldt4      equ GDT_10-GDT_1+011b;***simon
 
 ;********************************************************
 [section IDT]
@@ -184,34 +197,41 @@ start_pmr0code:
   ;***init PCB1
   mov dword[ds_1],sel_ldt1data
   mov dword[cs_1],sel_ldt1code
-  mov dword[eflags_1],1202h
-  mov dword[esp_1],stacktop_ldt1 ;***???
+  mov dword[eflags_1],d_eflags
+  mov dword[esp_1],d_proc_stacksize ;***???
   mov dword[ss_1],sel_ldt1stack
   mov word[sel_ldt1_],sel_ldt1
 
   ;***init PCB2
   mov dword[ds_2],sel_ldt2data
   mov dword[cs_2],sel_ldt2code
-  mov dword[eflags_2],1202h
-  mov dword[esp_2],stacktop_ldt2
+  mov dword[eflags_2],d_eflags
+  mov dword[esp_2],d_proc_stacksize
   mov dword[ss_2],sel_ldt2stack
   mov word[sel_ldt2_],sel_ldt2
 
   ;***init PCB3
   mov dword[ds_3],sel_ldt3data
   mov dword[cs_3],sel_ldt3code
-  mov dword[eflags_3],1202h
-  mov dword[esp_3],stacktop_ldt3
+  mov dword[eflags_3],d_eflags
+  mov dword[esp_3],d_proc_stacksize
   mov dword[ss_3],sel_ldt3stack
   mov word[sel_ldt3_],sel_ldt3
 
-  ;*** TODO
+  ;***init PCB4 simon
+  mov dword[ds_4],sel_ldt4data
+  mov dword[cs_4],sel_ldt4code
+  mov dword[eflags_4],d_eflags;*** TODO
+  mov dword[esp_4],d_proc_stacksize
+  mov dword[ss_4],sel_ldt4stack
+  mov word[sel_ldt4_],sel_ldt4
+
   mov dword[curPCB],r0addr(bunny_p1)
   mov ax, sel_ldt1
   lldt ax
 
   push sel_ldt1stack
-  push stacktop_ldt1
+  push d_proc_stacksize
   push sel_ldt1code
   push 0
   retf
@@ -292,8 +312,6 @@ FillPCB:
     sub esp, 4
     ret
  
-GetCurPCB: 
-
   _SpuriousHandler:
   SpuriousHandler equ _SpuriousHandler - $$
     ;PPrintLn bmsg7, 17, pos
@@ -350,29 +368,28 @@ pmr0code_len equ $-start_pmr0code
 
 
 ;*********************************************************************
-[SECTION LDT1]
+[SECTION ldt1]
 BITS 32
 ALIGN 32
 start_ldt1:
-LDT1_1: Descriptor 0, (ldt1code_len-1),  DA_CR+DA_32+DA_DPL3;***code
-LDT1_2: Descriptor 0, (ldt1data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
-LDT1_3: Descriptor 200000h, stacktop_ldt1, DA_DRWA+DA_32+DA_DPL3;***stack
+ldt1_1: Descriptor 0, (ldt1code_len-1),  DA_CR+DA_32+DA_DPL3;***code
+ldt1_2: Descriptor 0, (ldt1data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
+ldt1_3: Descriptor 200000h, d_proc_stacksize, DA_DRWA+DA_32+DA_DPL3;***stack
 
 sel_ldt1code equ  111b
-sel_ldt1data equ  LDT1_2-LDT1_1+111b
-sel_ldt1stack equ LDT1_3-LDT1_1+111b
-stacktop_ldt1 equ 64*1024-1
+sel_ldt1data equ  ldt1_2-ldt1_1+111b
+sel_ldt1stack equ ldt1_3-ldt1_1+111b
 
 ldt1_len equ $-start_ldt1
 
 ;*********************************************************************
-[SECTION LDT1CODE]
+[SECTION ldt1CODE]
 BITS 32
 ALIGN 32
 start_ldt1code:
-  PRINTCHAR 0eh,'P',1,1
-  PRINTCHAR 0eh,'1',1,2
-  PRINTCHAR 0eh,'0',1,3
+  PRINTCHAR 0dh,'P',1,1
+  PRINTCHAR 0dh,'1',1,2
+  PRINTCHAR 0dh,'0',1,3
 	.1:
 	  inc byte [fs:((80 * 1 + 3) * 2)]
     nop
@@ -394,7 +411,7 @@ start_ldt1code:
 ldt1code_len equ $-start_ldt1code
 
 ;*********************************************************************
-[SECTION LDT1DATA]
+[SECTION ldt1DATA]
 BITS 32
 ALIGN 32
 start_ldt1data:
@@ -403,29 +420,28 @@ ldt1data_len equ $-start_ldt1data
 
 
 ;*********************************************************************
-[SECTION LDT2]
+[SECTION ldt2]
 BITS 32
 ALIGN 32
 start_ldt2:
-LDT2_1: Descriptor 0, (ldt2code_len-1),  DA_CR+DA_32+DA_DPL3;***code
-LDT2_2: Descriptor 0, (ldt2data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
-LDT2_3: Descriptor 210000h, stacktop_ldt2, DA_DRWA+DA_32+DA_DPL3;***stack
+ldt2_1: Descriptor 0, (ldt2code_len-1),  DA_CR+DA_32+DA_DPL3;***code
+ldt2_2: Descriptor 0, (ldt2data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
+ldt2_3: Descriptor 210000h, d_proc_stacksize, DA_DRWA+DA_32+DA_DPL3;***stack
 
 sel_ldt2code equ  111b
-sel_ldt2data equ  LDT2_2-LDT2_1+111b
-sel_ldt2stack equ LDT2_3-LDT2_1+111b
-stacktop_ldt2 equ 64*1024-1
+sel_ldt2data equ  ldt2_2-ldt2_1+111b
+sel_ldt2stack equ ldt2_3-ldt2_1+111b
 
 ldt2_len equ $-start_ldt2
 
 ;*********************************************************************
-[SECTION LDT2CODE]
+[SECTION ldt2CODE]
 BITS 32
 ALIGN 32
 start_ldt2code:
-  PRINTCHAR 0eh,'P',1,10
-  PRINTCHAR 0eh,'2',1,11
-  PRINTCHAR 0eh,'0',1,12
+  PRINTCHAR 0bh,'P',1,10
+  PRINTCHAR 0bh,'2',1,11
+  PRINTCHAR 0bh,'0',1,12
 	.1:
 	  inc byte [fs:((80 * 1 + 12) * 2)]
     nop
@@ -444,7 +460,7 @@ start_ldt2code:
 ldt2code_len equ $-start_ldt2code
 
 ;*********************************************************************
-[SECTION LDT2DATA]
+[SECTION ldt2DATA]
 BITS 32
 ALIGN 32
 start_ldt2data:
@@ -454,30 +470,29 @@ ldt2data_len equ $-start_ldt2data
 
 
 ;*********************************************************************
-[SECTION LDT3]
+[SECTION ldt3]
 BITS 32
 ALIGN 32
 start_ldt3:
-LDT3_1: Descriptor 0, (ldt3code_len-1),  DA_CR+DA_32+DA_DPL3;***code
-LDT3_2: Descriptor 0, (ldt3data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
-LDT3_3: Descriptor 220000h, stacktop_ldt2, DA_DRWA+DA_32+DA_DPL3;***stack
+ldt3_1: Descriptor 0, (ldt3code_len-1),  DA_CR+DA_32+DA_DPL3;***code
+ldt3_2: Descriptor 0, (ldt3data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
+ldt3_3: Descriptor 220000h, d_proc_stacksize, DA_DRWA+DA_32+DA_DPL3;***stack
 
 sel_ldt3code equ  111b
-sel_ldt3data equ  LDT3_2-LDT3_1+111b
-sel_ldt3stack equ LDT3_3-LDT3_1+111b
-stacktop_ldt3 equ 64*1024-1
+sel_ldt3data equ  ldt3_2-ldt3_1+111b
+sel_ldt3stack equ ldt3_3-ldt3_1+111b
 
 ldt3_len equ $-start_ldt3
 
 
 ;*********************************************************************
-[SECTION LDT3CODE]
+[SECTION ldt3CODE]
 BITS 32
 ALIGN 32
 start_ldt3code:
-  PRINTCHAR 0eh,'P',1,20
-  PRINTCHAR 0eh,'3',1,21
-  PRINTCHAR 0eh,'0',1,22
+  PRINTCHAR 0ah,'P',1,20
+  PRINTCHAR 0ah,'3',1,21
+  PRINTCHAR 0ah,'0',1,22
 	.1:
 	  inc byte [fs:((80 * 1 + 22) * 2)]
     nop
@@ -496,9 +511,60 @@ start_ldt3code:
 ldt3code_len equ $-start_ldt3code
 
 ;*********************************************************************
-[SECTION LDT3DATA]
+[SECTION ldt3DATA]
 BITS 32
 ALIGN 32
 start_ldt3data:
   BSTRING p3data, "I am proc 3 in ring 3: 0"
 ldt3data_len equ $-start_ldt3data
+
+
+
+;*********************************************************************
+[SECTION ldt4]
+BITS 32
+ALIGN 32
+start_ldt4:
+ldt4_1: Descriptor 0, (ldt4code_len-1),  DA_CR+DA_32+DA_DPL3;***code
+ldt4_2: Descriptor 0, (ldt4data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
+ldt4_3: Descriptor 230000h, d_proc_stacksize, DA_DRWA+DA_32+DA_DPL3;***stack
+
+sel_ldt4code equ  111b
+sel_ldt4data equ  ldt4_2-ldt4_1+111b
+sel_ldt4stack equ ldt4_3-ldt4_1+111b
+
+ldt4_len equ $-start_ldt4
+
+
+;*********************************************************************
+[SECTION ldt4CODE]
+BITS 32
+ALIGN 32
+start_ldt4code:
+  PRINTCHAR 0ch,'P',1,30
+  PRINTCHAR 0ch,'4',1,31
+  PRINTCHAR 0ch,'0',1,32
+	.1:
+	  inc byte [fs:((80 * 1 + 32) * 2)]
+    nop
+	  jmp .1
+  ;call proc2
+  ;int 080h
+  ;sti
+  jmp $
+  ;retf
+
+	proc4:
+	.1:
+	  inc byte [fs:((80 * 1 + 32) * 2)]
+	  jmp .1
+	  ret
+ldt4code_len equ $-start_ldt4code
+
+;*********************************************************************
+[SECTION ldt4DATA]
+BITS 32
+ALIGN 32
+start_ldt4data:
+  BSTRING p4data, "I am proc 4 in ring 3: 0"
+ldt4data_len equ $-start_ldt4data
