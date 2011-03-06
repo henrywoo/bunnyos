@@ -390,10 +390,11 @@ start_r3text:
   _syscall_get_jiffies equ 0
   iv_get_jiffies equ 90h
 
-  get_jiffies:
+  _get_jiffies:
+  get_jiffies equ _get_jiffies-$$
     ;mov eax, _syscall_get_jiffies
     int iv_get_jiffies
-    ret
+    retf
 
   ;*** push 24msg, 20msg_len, 16row, 12column; call printline
 	_printline:
@@ -446,7 +447,13 @@ start_r3text:
   .1:
     mov ebx, eax
     and ebx,0000000fh
+    cmp bl, 9
+    ja .2
     add bl, 48
+    jmp .3
+  .2:
+    add bl, 55; lower 97
+  .3:
     dec edi
     mov byte [edi], bl 
     shr eax, 4
@@ -649,7 +656,13 @@ start_ldt4code:
   PRINTCHAR 0ch,'4',1,31
   PRINTCHAR 0ch,'0',1,32
 
-  int 90h
+
+  call proc4
+  jmp $
+
+	proc4:
+	.1:
+  call sel_r3text:get_jiffies
   push eax
   push ldt4dataaddr(strx)
   call sel_r3text:num2str
@@ -661,14 +674,8 @@ start_ldt4code:
   push 1
   call sel_r3text:printline ;*** far call
   add esp, 16
-
-  ;call proc4
-  jmp $
-
-	;proc4:
-	;.1:
 	;  inc byte [fs:((80 * 1 + 32) * 2)]
-	;  jmp .1
+	  jmp .1
 	;  ret
 ldt4code_len equ $-start_ldt4code
 
