@@ -20,7 +20,7 @@ ALIGN 32
 start_pmr0data:
 PCBSTART:
   ProcFrame 1
-  PCB_len equ $ - bunny_p1
+  PCB_len equ $ - PCBSTART
   ProcFrame 2
   ProcFrame 3
 PCBLAST:
@@ -232,7 +232,7 @@ start_pmr0code:
   ;***init PCB4 simon
   mov dword[ds_4],sel_ldt4data
   mov dword[cs_4],sel_ldt4code
-  mov dword[eflags_4],d_eflags;*** TODO
+  mov dword[eflags_4],d_eflags
   mov dword[esp_4],d_proc_stacksize
   mov dword[ss_4],sel_ldt4stack
   mov word[sel_ldt4_],sel_ldt4
@@ -332,17 +332,11 @@ start_pmr0code:
 
   _JiffiesHandler:
   JiffiesHandler equ _JiffiesHandler - $$
-    pushad  
     push  ds 
-    push  es 
-    push  fs
-    push  gs
-    ;mov eax, dword[r0addr(jiffies)]
-    pop gs 
-    pop fs
-    pop es
+    mov dx,sel_pmr0data
+    mov ds,dx
+    mov eax, dword[r0addr(jiffies)]
     pop ds
-    popad
     iretd
 
   io_delay:
@@ -397,10 +391,85 @@ start_r3text:
   iv_get_jiffies equ 90h
 
   get_jiffies:
-    mov eax, _syscall_get_jiffies
+    ;mov eax, _syscall_get_jiffies
     int iv_get_jiffies
     ret
 
+  ;*** push 24msg, 20msg_len, 16row, 12column; call printline
+	_printline:
+	printline equ _printline-$$
+	  push  ebp
+	  mov ebp, esp
+	  push  ebx
+	  push  esi
+	  push  edi
+	
+	  mov ecx, [ebp+16+4];len
+    mov esi,0
+	.1:
+	  ;mov eax, edi;disregard parameter row 
+	  mov eax, [ebp+12+4];row=3
+	  mov edx, 80
+	  mul edx ; mul will affect EDX!!!
+	  add eax, [ebp+8+4];column
+	  shl eax, 1
+	  mov edi, eax
+	  mov edx, [ebp+20+4]
+    mov ebx,esi
+	  mov al, byte [edx+ebx]
+	  mov ah, 0ch
+	  mov [fs:edi], ax
+    inc esi
+    inc dword [ebp+8+4]
+	  LOOP .1
+
+	  pop edi
+	  pop esi
+	  pop ebx
+	  pop ebp
+	  retf
+
+  ;*** push 20014a7fh,addr; call num2str
+	_num2str:
+	num2str equ _num2str-$$
+	  push  ebp
+	  mov ebp, esp
+	  push  ebx
+	  push  esi
+	  push  edi
+
+    mov edi, dword [(ebp+12)]
+    mov ebx, 0f0000000h
+    mov esi, 010000000h
+  .1:
+    mov eax, dword [ebp+16]
+    and eax, ebx
+    cmp eax, 0
+    je .2
+    mov ecx, ebx
+    add ecx, esi
+    shl eax, 4
+    cmp ecx, 0
+    jne .3
+    mov ecx, 1
+   .3:
+    div ecx
+  .2:
+    add al, 48
+    mov byte [edi], al 
+    inc edi
+    shr ebx, 4
+    shr esi, 4
+    cmp ebx, 0
+    jne .1
+
+	  pop edi
+	  pop esi
+	  pop ebx
+	  pop ebp
+
+	  retf
+    
 r3text_len equ $-start_r3text
 
 
@@ -572,6 +641,15 @@ sel_ldt4stack equ ldt4_3-ldt4_1+111b
 
 ldt4_len equ $-start_ldt4
 
+;*********************************************************************
+%define ldt4dataaddr(X) (X-start_ldt4data)
+[SECTION ldt4DATA]
+BITS 32
+ALIGN 32
+start_ldt4data:
+  BSTRING p4data, "I am proc 4 in ring 3: 0"
+  strx: times 32 db 0
+ldt4data_len equ $-start_ldt4data
 
 ;*********************************************************************
 [SECTION ldt4CODE]
@@ -581,24 +659,27 @@ start_ldt4code:
   PRINTCHAR 0ch,'P',1,30
   PRINTCHAR 0ch,'4',1,31
   PRINTCHAR 0ch,'0',1,32
-  int 90h
-  call proc4
-  ;int 080h
-  ;sti
-  jmp $
-  ;retf
 
-	proc4:
-	.1:
-	  inc byte [fs:((80 * 1 + 32) * 2)]
-	  jmp .1
-	  ret
+  int 90h
+  push eax
+  push ldt4dataaddr(strx)
+  call sel_r3text:num2str
+  add esp, 8
+  
+  push ldt4dataaddr(strx)
+  push 32
+  push 3
+  push 1
+  call sel_r3text:printline ;*** far call
+  add esp, 16
+
+  ;call proc4
+  jmp $
+
+	;proc4:
+	;.1:
+	;  inc byte [fs:((80 * 1 + 32) * 2)]
+	;  jmp .1
+	;  ret
 ldt4code_len equ $-start_ldt4code
 
-;*********************************************************************
-[SECTION ldt4DATA]
-BITS 32
-ALIGN 32
-start_ldt4data:
-  BSTRING p4data, "I am proc 4 in ring 3: 0"
-ldt4data_len equ $-start_ldt4data
