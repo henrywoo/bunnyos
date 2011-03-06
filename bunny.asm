@@ -35,6 +35,8 @@ PCBEND:
   curPCB dd 0
   reenter dd -1
   jiffies dd 0
+  
+  kbcount dd 0
 
   BSTRING bmsg1, "BunnyOS 1.0"
   BSTRING bmsg2, "Protected Mode, ring 0"
@@ -59,16 +61,14 @@ start_real:
   DTBaseEqual GDT_4,start_pmr0data
   DTBaseEqual GDT_6,start_tss
   DTBaseEqual GDT_7,start_ldt1
-  DTBaseEqual GDT_8,start_ldt2
   DTBaseEqual ldt1_1,start_ldt1code
   DTBaseEqual ldt1_2,start_ldt1data
+  DTBaseEqual GDT_8,start_ldt2
   DTBaseEqual ldt2_1,start_ldt2code
   DTBaseEqual ldt2_2,start_ldt2data
-
   DTBaseEqual GDT_9,start_ldt3
   DTBaseEqual ldt3_1,start_ldt3code
   DTBaseEqual ldt3_2,start_ldt3data
-
   DTBaseEqual GDT_10,start_ldt4;***simon
   DTBaseEqual ldt4_1,start_ldt4code
   DTBaseEqual ldt4_2,start_ldt4data
@@ -141,7 +141,8 @@ start_idt:
         Gate sel_pmr0code,SpuriousHandler, 0,DA_386IGate
 %endrep
 .020h:  Gate sel_pmr0code,ClockHandler,    0,DA_386IGate
-%rep 6fh
+.021h:  Gate sel_pmr0code,KeyboardHandler, 0,DA_386IGate
+%rep 6eh
         Gate sel_pmr0code,SpuriousHandler, 0,DA_386IGate
 %endrep
 .090h:  Gate sel_pmr0code,JiffiesHandler,  0,DA_386IGate+DA_DPL3
@@ -158,33 +159,7 @@ start_tss:
   backlink  dd 0
   esp0      dd STACKTOP-STACKBOT-1; top of stack of ring 0
   ss0       dd sel_pmr0stack
-%ifndef SHORTER_CODE
   times 22 dd 0
-%else
-  esp1      dd 0
-  ss1       dd 0
-  esp2      dd 0
-  ss2       dd 0
-  cr3_      dd 0
-  eip_      dd 0
-  flags     dd 0
-  eax_      dd 0
-  ecx_      dd 0
-  edx_      dd 0
-  ebx_      dd 0
-  esp_      dd 0
-  ebp_      dd 0
-  esi_      dd 0
-  edi_      dd 0
-  es_      dd 0
-  cs_      dd 0
-  ss_      dd 0
-  ds_      dd 0
-  fs_      dd 0
-  gs_      dd 0
-  ldt_     dd 0
-%endif
-
   trap_      dw 0
   iobase_    dw $-start_tss+2 
   DB 0ffh
@@ -206,8 +181,6 @@ start_pmr0code:
   mov fs, cx
 
   call Init8259A
-  sti
-
   ;*** set 10ms interrupt (8253 control register)
   mov al, 34h
   out 43h, al
@@ -217,47 +190,34 @@ start_pmr0code:
   nop
   mov al, 2eh
   out 40h, al
+  sti
 
   mov ax, sel_tss
   ltr ax
 
-  ;***init PCB1
+  ;***init PCB1 simon
   mov dword[ds_1],sel_ldt1data
   mov dword[cs_1],sel_ldt1code
   mov dword[eflags_1],d_eflags
-  mov dword[esp_1],d_proc_stacksize ;***???
+  mov dword[esp_1],d_proc_stacksize
   mov dword[ss_1],sel_ldt1stack
   mov word[sel_ldt1_],sel_ldt1
 
-  ;***init PCB2
-  mov dword[ds_2],sel_ldt2data
-  mov dword[cs_2],sel_ldt2code
-  mov dword[eflags_2],d_eflags
-  mov dword[esp_2],d_proc_stacksize
-  mov dword[ss_2],sel_ldt2stack
-  mov word[sel_ldt2_],sel_ldt2
-
-  ;***init PCB3
-  mov dword[ds_3],sel_ldt3data
-  mov dword[cs_3],sel_ldt3code
-  mov dword[eflags_3],d_eflags
-  mov dword[esp_3],d_proc_stacksize
-  mov dword[ss_3],sel_ldt3stack
-  mov word[sel_ldt3_],sel_ldt3
-
-  ;***init PCB4 simon
-  mov dword[ds_4],sel_ldt4data
-  mov dword[cs_4],sel_ldt4code
-  mov dword[eflags_4],d_eflags
-  mov dword[esp_4],d_proc_stacksize
-  mov dword[ss_4],sel_ldt4stack
-  mov word[sel_ldt4_],sel_ldt4
+%macro INITPBC 1
+  mov dword[ds_ %+ %1],sel_ldt %+ %1 %+ data
+  mov dword[cs_ %+ %1 ],sel_ldt %+ %1 %+ code
+  mov dword[eflags_ %+ %1 ],d_eflags
+  mov dword[esp_ %+ %1 ],d_proc_stacksize
+  mov dword[ss_ %+ %1 ],sel_ldt %+ %1 %+ stack
+  mov word[sel_ldt %+ %1 %+ _],sel_ldt %+ %1 
+%endmacro
+  INITPBC 2
+  INITPBC 3
+  INITPBC 4
 
   mov dword[curPCB],r0addr(bunny_p1)
   mov ax, sel_ldt1
   lldt ax
-
-  ;int 90h
 
   push sel_ldt1stack
   push d_proc_stacksize
@@ -339,12 +299,34 @@ start_pmr0code:
  
   _SpuriousHandler:
   SpuriousHandler equ _SpuriousHandler - $$
-    ;PPrintLn bmsg7, 17, pos
     PRINTCHAR 0dh,'I',23,1
     PRINTCHAR 0dh,'N',23,2
     PRINTCHAR 0dh,'T',23,3
-    ;jmp $
     iretd
+
+  _KeyboardHandler:
+  KeyboardHandler equ _KeyboardHandler - $$
+    pushad  
+    push  ds 
+
+    mov dx,sel_pmr0data
+    mov ds,dx
+    inc dword [r0addr(kbcount)]
+    mov ebx, dword [r0addr(kbcount)]
+    in al,0x60
+    call io_delay
+    PRINTCHAR 0dh,'k',6,ebx
+
+    pop ds
+    popad
+    iretd
+
+  in_byte:
+    mov edx, [esp + 4]    ; port
+    xor eax, eax
+    in  al, dx
+    call io_delay
+    ret
 
   _JiffiesHandler:
   JiffiesHandler equ _JiffiesHandler - $$
@@ -356,7 +338,7 @@ start_pmr0code:
     iretd
 
   io_delay:
-    %rep 10
+    %rep 3
     nop
     %endrep
     ret
@@ -400,8 +382,7 @@ start_pmr0code:
     mov edx, [esp + 4]    ; port
     mov al, [esp + 8] ; value
     out dx, al
-    nop
-    nop
+    call io_delay
     ret 8
 pmr0code_len equ $-start_pmr0code
 
@@ -442,7 +423,7 @@ start_r3text:
 	  mov edi, eax
 	  mov edx, [ebp+20+4]
     mov ebx,esi
-	  mov al, byte [edx+ebx]
+	  mov al, byte [ds:(edx+ebx)]
 	  mov ah, 0ch
 	  mov [fs:edi], ax
     inc esi
@@ -519,6 +500,19 @@ start_r3text:
 r3text_len equ $-start_r3text
 
 
+%macro r3print 4
+    push %1;msg
+    push %2;len
+    push %3;row
+    push %4;column
+    call sel_r3text:printline ;*** far call
+    add esp, 16
+%endmacro
+%macro Sleep 1
+    push %1
+    call sel_r3text:sleep_ms
+    add esp, 4
+%endmacro
 ;*********************************************************************
 [SECTION ldt1]
 BITS 32
@@ -535,39 +529,28 @@ sel_ldt1stack equ ldt1_3-ldt1_1+111b
 ldt1_len equ $-start_ldt1
 
 ;*********************************************************************
-[SECTION ldt1CODE]
-BITS 32
-ALIGN 32
-start_ldt1code:
-  PRINTCHAR 0dh,'P',1,1
-  PRINTCHAR 0dh,'1',1,2
-  PRINTCHAR 0dh,'0',1,3
-	.1:
-	  inc byte [fs:((80 * 1 + 3) * 2)]
-    push 1000
-    call sel_r3text:sleep_ms
-    add esp, 4
-	  jmp .1
-  ;call proc1
-  ;int 080h
-  ;sti
-  jmp $
-  ;retf
-
-	proc1:
-	.1:
-	  inc byte [fs:((80 * 1 + 3) * 2)]
-	  jmp .1
-	  ret
-ldt1code_len equ $-start_ldt1code
-
-;*********************************************************************
+%define ldt1dataaddr(X) (X-start_ldt1data)
 [SECTION ldt1DATA]
 BITS 32
 ALIGN 32
 start_ldt1data:
-  BSTRING p1data, "I am proc 1 in ring 3: 0"
+  BSTRING p1data, "I am proc 1 in ring 3 - sleep 10s -  "
 ldt1data_len equ $-start_ldt1data
+
+;*********************************************************************
+[SECTION ldt1CODE]
+BITS 32
+ALIGN 32
+start_ldt1code:
+  mov ax, sel_ldt1data
+  mov ds, ax
+  r3print ldt1dataaddr(p1data),p1data_len,1,1
+	.1:
+	  inc byte [fs:((80 * 1 + p1data_len) * 2)]
+    Sleep 1000
+	  jmp .1
+  jmp $
+ldt1code_len equ $-start_ldt1code
 
 
 ;*********************************************************************
@@ -586,41 +569,27 @@ sel_ldt2stack equ ldt2_3-ldt2_1+111b
 ldt2_len equ $-start_ldt2
 
 ;*********************************************************************
-[SECTION ldt2CODE]
-BITS 32
-ALIGN 32
-start_ldt2code:
-  PRINTCHAR 0bh,'P',1,10
-  PRINTCHAR 0bh,'2',1,11
-  PRINTCHAR 0bh,'0',1,12
-	.1:
-	  inc byte [fs:((80 * 1 + 12) * 2)]
-    push 2000
-    call sel_r3text:sleep_ms
-    add esp, 4
-	  jmp .1
-  ;call proc2
-  ;int 080h
-  ;sti
-  jmp $
-  ;retf
-
-	proc2:
-	.1:
-	  inc byte [fs:((80 * 1 + 12) * 2)]
-	  jmp .1
-	  ret
-ldt2code_len equ $-start_ldt2code
-
-;*********************************************************************
+%define ldt2dataaddr(X) (X-start_ldt2data)
 [SECTION ldt2DATA]
 BITS 32
 ALIGN 32
 start_ldt2data:
-  BSTRING p2data, "I am proc 2 in ring 3: 0"
+  BSTRING p2data, "I am proc 2 in ring 3 - sleep 5s -  "
 ldt2data_len equ $-start_ldt2data
 
+;*********************************************************************
+[SECTION ldt2CODE]
+BITS 32
+ALIGN 32
+start_ldt2code:
+  r3print ldt2dataaddr(p2data),p2data_len,2,1
+	.1:
+	  inc byte [fs:((80 * 2 + p2data_len) * 2)]
+    Sleep 500
+	  jmp .1
+  jmp $
 
+ldt2code_len equ $-start_ldt2code
 
 ;*********************************************************************
 [SECTION ldt3]
@@ -637,43 +606,27 @@ sel_ldt3stack equ ldt3_3-ldt3_1+111b
 
 ldt3_len equ $-start_ldt3
 
+;*********************************************************************
+%define ldt3dataaddr(X) (X-start_ldt3data)
+[SECTION ldt3DATA]
+BITS 32
+ALIGN 32
+start_ldt3data:
+  BSTRING p3data, "I am proc 3 in ring 3 - sleep 1s -  "
+ldt3data_len equ $-start_ldt3data
 
 ;*********************************************************************
 [SECTION ldt3CODE]
 BITS 32
 ALIGN 32
 start_ldt3code:
-  PRINTCHAR 0ah,'P',1,20
-  PRINTCHAR 0ah,'3',1,21
-  PRINTCHAR 0ah,'0',1,22
+  r3print ldt3dataaddr(p3data),p3data_len,3,1
 	.1:
-	  inc byte [fs:((80 * 1 + 22) * 2)]
-    push 100
-    call sel_r3text:sleep_ms
-    add esp, 4
+	  inc byte [fs:((80 * 3 + p3data_len) * 2)]
+    Sleep 100
 	  jmp .1
-  ;call proc2
-  ;int 080h
-  ;sti
   jmp $
-  ;retf
-
-	proc3:
-	.1:
-	  inc byte [fs:((80 * 3 + 12) * 2)]
-	  jmp .1
-	  ret
 ldt3code_len equ $-start_ldt3code
-
-;*********************************************************************
-[SECTION ldt3DATA]
-BITS 32
-ALIGN 32
-start_ldt3data:
-  BSTRING p3data, "I am proc 3 in ring 3: 0"
-ldt3data_len equ $-start_ldt3data
-
-
 
 ;*********************************************************************
 [SECTION ldt4]
@@ -696,7 +649,7 @@ ldt4_len equ $-start_ldt4
 BITS 32
 ALIGN 32
 start_ldt4data:
-  BSTRING p4data, "I am proc 4 in ring 3: 0"
+  BSTRING p4data, "I am proc 4 in ring 3 - jiffies -"
   strx: times 32 db 0
 ldt4data_len equ $-start_ldt4data
 
@@ -705,9 +658,7 @@ ldt4data_len equ $-start_ldt4data
 BITS 32
 ALIGN 32
 start_ldt4code:
-  PRINTCHAR 0ch,'P',1,30
-  PRINTCHAR 0ch,'4',1,31
-  PRINTCHAR 0ch,'0',1,32
+  r3print ldt4dataaddr(p4data),p4data_len,4,1
   call proc4
   jmp $
 
@@ -719,13 +670,7 @@ start_ldt4code:
     call sel_r3text:num2str
     add esp, 8
     
-    push ldt4dataaddr(strx)
-    push 32
-    push 1
-    push 34
-    call sel_r3text:printline ;*** far call
-    add esp, 16
-	  inc byte [fs:((80 * 1 + 32) * 2)]
+    r3print ldt4dataaddr(strx),32,4,(p4data_len+2)
 	  jmp .1
 	  ret
 
