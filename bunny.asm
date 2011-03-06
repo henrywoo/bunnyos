@@ -436,14 +436,14 @@ start_r3text:
 	  pop ebp
 	  retf
 
-  ;*** push 20014a7fh,addr; call num2str
+  ;*** push 20014a7fh, addr; call num2str
 	_num2str:
 	num2str equ _num2str-$$
 	  push  ebp
 	  mov ebp, esp
-	  push  ebx
 	  push  esi
 	  push  edi
+    pushad
 
     mov edi, dword [ebp+12];address
     add edi, 8
@@ -465,9 +465,9 @@ start_r3text:
     shr eax, 4
     loop .1
 
+    popad
 	  pop edi
 	  pop esi
-	  pop ebx
 	  pop ebp
 	  retf
 
