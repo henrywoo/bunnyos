@@ -13,6 +13,12 @@ pos equ 1 ;pos equ (80-bmsg1_len)/2
 d_eflags equ 1202h
 d_proc_stacksize equ 64*1024-1
 
+%define TIMER_MODE     0x43 ;/* I/O port for timer mode control */
+%define RATE_GENERATOR 0x34 ;/* 00-11-010-0 :
+%define TIMER0         0x40 ;/* I/O port for timer channel 0 */
+%define TIMER_FREQ     1193180; /* clock frequency for timer in PC and AT */
+%define HZ             100
+
 ;*********************************************************************
 [SECTION PMR0DATA]
 BITS 32
@@ -202,6 +208,16 @@ start_pmr0code:
   call Init8259A
   sti
 
+  ;*** set 10ms interrupt (8253 control register)
+  mov al, 34h
+  out 43h, al
+  nop
+  mov al, 9bh
+  out 40h, al
+  nop
+  mov al, 2eh
+  out 40h, al
+
   mov ax, sel_tss
   ltr ax
 
@@ -370,7 +386,8 @@ start_pmr0code:
     out 0A1h, al  ; 从8259, ICW4.
     call  io_delay
     ;mov  al, 11111111b ; 屏蔽主8259所有中断
-    mov al, 11111110b ; 仅仅开启定时器中断
+    ;mov al, 11111110b ; 仅仅开启定时器中断
+    mov al, 11111100b ;keyboard and timer
     out 021h, al  ; 主8259, OCW1.
     call  io_delay
     mov al, 11111111b ; 屏蔽从8259所有中断
@@ -378,6 +395,14 @@ start_pmr0code:
     call  io_delay
     ret
 
+  ;*** void out_byte(u16 port, u8 value);
+  out_byte:
+    mov edx, [esp + 4]    ; port
+    mov al, [esp + 8] ; value
+    out dx, al
+    nop
+    nop
+    ret 8
 pmr0code_len equ $-start_pmr0code
 
 
@@ -463,8 +488,33 @@ start_r3text:
 	  pop esi
 	  pop ebx
 	  pop ebp
-
 	  retf
+
+  ;*** push 102; call sleep_ms
+  _sleep_ms:
+  sleep_ms equ _sleep_ms - $$
+	  push  ebp
+	  mov ebp, esp
+	  push  ebx
+	  push  esi
+	  push  edi
+
+    int 90h
+    mov edi, eax
+  .2
+    int 90h
+    sub eax, edi
+    mov ecx, 1000/HZ
+    mul ecx
+    cmp eax, dword [ebp+12]
+    jl .2
+
+	  pop edi
+	  pop esi
+	  pop ebx
+	  pop ebp
+	  retf
+
     
 r3text_len equ $-start_r3text
 
@@ -494,7 +544,9 @@ start_ldt1code:
   PRINTCHAR 0dh,'0',1,3
 	.1:
 	  inc byte [fs:((80 * 1 + 3) * 2)]
-    nop
+    push 1000
+    call sel_r3text:sleep_ms
+    add esp, 4
 	  jmp .1
   ;call proc1
   ;int 080h
@@ -505,9 +557,6 @@ start_ldt1code:
 	proc1:
 	.1:
 	  inc byte [fs:((80 * 1 + 3) * 2)]
-    %rep 100
-    nop
-    %endrep
 	  jmp .1
 	  ret
 ldt1code_len equ $-start_ldt1code
@@ -546,7 +595,9 @@ start_ldt2code:
   PRINTCHAR 0bh,'0',1,12
 	.1:
 	  inc byte [fs:((80 * 1 + 12) * 2)]
-    nop
+    push 2000
+    call sel_r3text:sleep_ms
+    add esp, 4
 	  jmp .1
   ;call proc2
   ;int 080h
@@ -597,7 +648,9 @@ start_ldt3code:
   PRINTCHAR 0ah,'0',1,22
 	.1:
 	  inc byte [fs:((80 * 1 + 22) * 2)]
-    nop
+    push 100
+    call sel_r3text:sleep_ms
+    add esp, 4
 	  jmp .1
   ;call proc2
   ;int 080h
@@ -675,5 +728,7 @@ start_ldt4code:
 	  inc byte [fs:((80 * 1 + 32) * 2)]
 	  jmp .1
 	  ret
-ldt4code_len equ $-start_ldt4code
 
+    
+    
+ldt4code_len equ $-start_ldt4code
