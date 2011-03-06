@@ -655,27 +655,25 @@ start_ldt4code:
   PRINTCHAR 0ch,'P',1,30
   PRINTCHAR 0ch,'4',1,31
   PRINTCHAR 0ch,'0',1,32
-
-
   call proc4
   jmp $
 
 	proc4:
 	.1:
-  call sel_r3text:get_jiffies
-  push eax
-  push ldt4dataaddr(strx)
-  call sel_r3text:num2str
-  add esp, 8
-  
-  push ldt4dataaddr(strx)
-  push 32
-  push 3
-  push 1
-  call sel_r3text:printline ;*** far call
-  add esp, 16
-	;  inc byte [fs:((80 * 1 + 32) * 2)]
+    call sel_r3text:get_jiffies
+    push eax
+    push ldt4dataaddr(strx)
+    call sel_r3text:num2str
+    add esp, 8
+    
+    push ldt4dataaddr(strx)
+    push 32
+    push 1
+    push 34
+    call sel_r3text:printline ;*** far call
+    add esp, 16
+	  inc byte [fs:((80 * 1 + 32) * 2)]
 	  jmp .1
-	;  ret
+	  ret
 ldt4code_len equ $-start_ldt4code
 
