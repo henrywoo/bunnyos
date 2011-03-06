@@ -438,30 +438,19 @@ start_r3text:
 	  push  esi
 	  push  edi
 
-    mov edi, dword [(ebp+12)]
-    mov ebx, 0f0000000h
-    mov esi, 010000000h
+    mov edi, dword [ebp+12];address
+    add edi, 8
+    mov eax, dword [ebp+16];num
+    mov ebx, eax
+    mov ecx, 8
   .1:
-    mov eax, dword [ebp+16]
-    and eax, ebx
-    cmp eax, 0
-    je .2
-    mov ecx, ebx
-    add ecx, esi
-    shl eax, 4
-    cmp ecx, 0
-    jne .3
-    mov ecx, 1
-   .3:
-    div ecx
-  .2:
-    add al, 48
-    mov byte [edi], al 
-    inc edi
-    shr ebx, 4
-    shr esi, 4
-    cmp ebx, 0
-    jne .1
+    mov ebx, eax
+    and ebx,0000000fh
+    add bl, 48
+    dec edi
+    mov byte [edi], bl 
+    shr eax, 4
+    loop .1
 
 	  pop edi
 	  pop esi
