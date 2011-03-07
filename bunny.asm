@@ -360,9 +360,8 @@ start_pmr0code:
    .1:
     inc dword [r0addr(kbcount)]
     mov ebx, dword [r0addr(kbcount)]
-    PRINTCHAR 0dh,'k',6,ebx
-
     printdd eax, ebx
+    ;PRINTCHAR 0dh,'k',6,ebx
 
     mov al, 0x20 ;clear buffer
     out 0x20, al
@@ -494,7 +493,7 @@ start_pmr0code:
     mov edx, [ebp+20]
     mov ebx,esi
     mov al, byte [ds:(edx+ebx)]
-    mov ah, 0ch
+    mov ah, 0Dh
     mov [fs:edi], ax
     inc esi
     inc dword [ebp+8]
