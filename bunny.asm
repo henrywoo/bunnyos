@@ -13,11 +13,11 @@ pos equ 1 ;pos equ (80-bmsg1_len)/2
 d_eflags equ 1202h
 d_proc_stacksize equ 64*1024-1
 
-%define TIMER_MODE     0x43 ;/* I/O port for timer mode control */
-%define RATE_GENERATOR 0x34 ;/* 00-11-010-0 :
-%define TIMER0         0x40 ;/* I/O port for timer channel 0 */
+%define TIMER_MODE     43h ;/* I/O port for timer mode control */
+%define RATE_GENERATOR 34h ;/* 00-11-010-0 :
+%define TIMER0         40h ;/* I/O port for timer channel 0 */
 %define TIMER_FREQ     1193180; /* clock frequency for timer in PC and AT */
-%define HZ             100
+%define HZ             (100)
 
 ;*********************************************************************
 [SECTION PMR0DATA]
@@ -49,6 +49,8 @@ PCBEND:
   BSTRING author, "Author: Wu Fuheng"
   BSTRING email , "Email : wufuheng@gmail.com"
   BSTRING date  , "Date  : 2010-02-13"
+  strdd: times 8 db 0
+  strdb: times 2 db 0
 pmr0data_len equ $ - start_pmr0data
 
 
@@ -180,20 +182,37 @@ start_pmr0code:
   mov cx, sel_video
   mov fs, cx
 
-  call Init8259A
-  ;*** set 10ms interrupt (8253 control register)
-  mov al, 34h
-  out 43h, al
-  nop
-  mov al, 9bh
-  out 40h, al
-  nop
-  mov al, 2eh
-  out 40h, al
-  sti
-
   mov ax, sel_tss
   ltr ax
+
+  call Init8259A
+
+  ;*** set 10ms interrupt (8253 control register)
+  ;push RATE_GENERATOR
+  ;push TIMER_MODE
+  ;call out_byte
+  ;call io_delay
+
+  ;push TIMER_FREQ/HZ
+  ;push TIMER0
+  ;call out_byte
+  ;call io_delay
+
+  ;push ((TIMER_FREQ/HZ) >>8)
+  ;push TIMER0
+  ;call out_byte
+  ;call io_delay
+
+  ;mov al, 34h
+  ;out 43h, al
+  ;nop
+  ;mov al, 9bh
+  ;out 40h, al
+  ;nop
+  ;mov al, 2eh
+  ;out 40h, al
+
+  sti
 
   ;***init PCB1 simon
   mov dword[ds_1],sel_ldt1data
@@ -306,27 +325,46 @@ start_pmr0code:
 
   _KeyboardHandler:
   KeyboardHandler equ _KeyboardHandler - $$
-    pushad  
     push  ds 
+    pushad  
+
+  .spin:
+    in  al, 0x64
+    and al, 0x01
+    jz  .spin
+
+    xor eax,eax
+    in al,0x60
 
     mov dx,sel_pmr0data
     mov ds,dx
+    
+    cmp dword [r0addr(kbcount)],0
+    je .1
+    add dword [r0addr(kbcount)],8
+   .1:
     inc dword [r0addr(kbcount)]
     mov ebx, dword [r0addr(kbcount)]
-    in al,0x60
-    call io_delay
-    PRINTCHAR 0dh,'k',6,ebx
+    ;PRINTCHAR 0dh,'k',16,ebx
 
-    pop ds
+    ;***
+    push eax
+    push r0addr(strdd)
+    call _r0num2str
+
+    push r0addr(strdd)
+    push 8
+    push 7
+    push ebx
+    call _r0printline
+    call io_delay
+
+    mov al, 0x20 ;clear buffer
+    out 0x20, al
+
     popad
+    pop ds
     iretd
-
-  in_byte:
-    mov edx, [esp + 4]    ; port
-    xor eax, eax
-    in  al, dx
-    call io_delay
-    ret
 
   _JiffiesHandler:
   JiffiesHandler equ _JiffiesHandler - $$
@@ -338,9 +376,10 @@ start_pmr0code:
     iretd
 
   io_delay:
-    %rep 3
     nop
-    %endrep
+    nop
+    nop
+    nop
     ret
 
   ;*** Init8259A ------------------------------------
@@ -384,6 +423,83 @@ start_pmr0code:
     out dx, al
     call io_delay
     ret 8
+
+  in_byte:
+    mov edx, [esp + 4]    ; port
+    xor eax, eax
+    in  al, dx
+    call io_delay
+    ret 4
+
+  ;*** push 24msg, 20msg_len, 16row, 12column; call printline
+	_r0printline:
+	r0printline equ _r0printline-$$
+	  push  ebp
+	  mov ebp, esp
+	  push  esi
+	  push  edi
+    pushad
+	
+	  mov ecx, [ebp+16];len
+    mov esi,0
+	.1:
+	  ;mov eax, edi;disregard parameter row 
+	  mov eax, [ebp+12];row=3
+	  mov edx, 80
+	  mul edx ; mul will affect EDX!!!
+	  add eax, [ebp+8];column
+	  shl eax, 1
+	  mov edi, eax
+	  mov edx, [ebp+20]
+    mov ebx,esi
+	  mov al, byte [ds:(edx+ebx)]
+	  mov ah, 0ch
+	  mov [fs:edi], ax
+    inc esi
+    inc dword [ebp+8]
+	  LOOP .1
+
+    popad
+	  pop edi
+	  pop esi
+	  pop ebp
+	  ret 16
+
+  ;*** push 20014a7fh, addr; call num2str
+	_r0num2str:
+	r0num2str equ _r0num2str-$$
+	  push  ebp
+	  mov ebp, esp
+	  push  esi
+	  push  edi
+    pushad
+
+    mov edi, dword [ebp+8];address
+    add edi, 8
+    mov eax, dword [ebp+12];num
+    mov ebx, eax
+    mov ecx, 8
+  .1:
+    mov ebx, eax
+    and ebx,0000000fh
+    cmp bl, 9
+    ja .2
+    add bl, 48
+    jmp .3
+  .2:
+    add bl, 55; lower 97
+  .3:
+    dec edi
+    mov byte [edi], bl 
+    shr eax, 4
+    loop .1
+
+    popad
+	  pop edi
+	  pop esi
+	  pop ebp
+	  ret 8
+
 pmr0code_len equ $-start_pmr0code
 
 
@@ -476,9 +592,9 @@ start_r3text:
   sleep_ms equ _sleep_ms - $$
 	  push  ebp
 	  mov ebp, esp
-	  push  ebx
 	  push  esi
 	  push  edi
+    pushad
 
     int 90h
     mov edi, eax
@@ -490,9 +606,9 @@ start_r3text:
     cmp eax, dword [ebp+12]
     jl .2
 
+    popad
 	  pop edi
 	  pop esi
-	  pop ebx
 	  pop ebp
 	  retf
 
@@ -650,7 +766,7 @@ BITS 32
 ALIGN 32
 start_ldt4data:
   BSTRING p4data, "I am proc 4 in ring 3 - jiffies -"
-  strx: times 32 db 0
+  strx: times 8 db 0
 ldt4data_len equ $-start_ldt4data
 
 ;*********************************************************************
@@ -670,7 +786,7 @@ start_ldt4code:
     call sel_r3text:num2str
     add esp, 8
     
-    r3print ldt4dataaddr(strx),32,4,(p4data_len+2)
+    r3print ldt4dataaddr(strx),8,4,(p4data_len+2)
 	  jmp .1
 	  ret
 
