@@ -37,6 +37,7 @@ PCBEND:
   jiffies dd 0
   
   kbcount dd 0
+  curpos dd 0x100
 
   BSTRING bmsg1, "BunnyOS 1.0"
   BSTRING bmsg2, "Protected Mode, ring 0"
@@ -323,12 +324,26 @@ start_pmr0code:
     PRINTCHAR 0dh,'T',23,3
     iretd
 
+  ; printdd eax,ebx
+  %macro printdd 2
+    push %1; register name; you want to print its value
+    push r0addr(strdd)
+    call _r0num2str
+
+    push r0addr(strdd)
+    push 8
+    push 6;row
+    push %2;cloumn
+    call _r0printline
+  %endmacro
+
+
   _KeyboardHandler:
   KeyboardHandler equ _KeyboardHandler - $$
     push  ds 
     pushad  
 
-  .spin:
+   .spin:
     in  al, 0x64
     and al, 0x01
     jz  .spin
@@ -345,26 +360,46 @@ start_pmr0code:
    .1:
     inc dword [r0addr(kbcount)]
     mov ebx, dword [r0addr(kbcount)]
-    ;PRINTCHAR 0dh,'k',16,ebx
+    PRINTCHAR 0dh,'k',6,ebx
 
-    ;***
-    push eax
-    push r0addr(strdd)
-    call _r0num2str
-
-    push r0addr(strdd)
-    push 8
-    push 7
-    push ebx
-    call _r0printline
-    call io_delay
+    printdd eax, ebx
 
     mov al, 0x20 ;clear buffer
     out 0x20, al
 
+    ;*** set cursor
+    push 0eh
+    push 3d4h
+    call out_byte
+
+    add ebx,80*6+7
+    shl ebx, 1
+
+    mov eax,ebx
+    shr ebx, 9
+    and ebx, 0ffh
+    push ebx ;(((ebx/2)>>8)&0ffh)
+    push 3d5h
+    call out_byte
+
+    push 0fh
+    push 3d4h
+    call out_byte
+
+    shr eax, 1
+    and eax, 0ffh
+    push eax;((20/2)&0ffh)
+    push 3d5h
+    call out_byte
+    ;***
+
+    ;printdd eax, 1
+    ;printdd ebx, 9
     popad
     pop ds
     iretd
+
+
 
   _JiffiesHandler:
   JiffiesHandler equ _JiffiesHandler - $$
@@ -416,19 +451,25 @@ start_pmr0code:
     call  io_delay
     ret
 
-  ;*** void out_byte(u16 port, u8 value);
+  ;*** push value(8), port(4); call out_byte
   out_byte:
-    mov edx, [esp + 4]    ; port
-    mov al, [esp + 8] ; value
+    mov ebp,esp
+    pushad
+    mov dx, word [ebp + 4]    ; port
+    mov al, byte [ebp + 8] ; value
     out dx, al
     call io_delay
+    popad
     ret 8
 
   in_byte:
-    mov edx, [esp + 4]    ; port
+    mov ebp,esp
+    pushad
+    mov edx, [ebp + 4]    ; port
     xor eax, eax
     in  al, dx
     call io_delay
+    popad
     ret 4
 
   ;*** push 24msg, 20msg_len, 16row, 12column; call printline
