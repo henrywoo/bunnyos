@@ -432,46 +432,46 @@ start_pmr0code:
     ret 4
 
   ;*** push 24msg, 20msg_len, 16row, 12column; call printline
-	_r0printline:
-	r0printline equ _r0printline-$$
-	  push  ebp
-	  mov ebp, esp
-	  push  esi
-	  push  edi
+  _r0printline:
+  r0printline equ _r0printline-$$
+    push  ebp
+    mov ebp, esp
+    push  esi
+    push  edi
     pushad
-	
-	  mov ecx, [ebp+16];len
+  
+    mov ecx, [ebp+16];len
     mov esi,0
-	.1:
-	  ;mov eax, edi;disregard parameter row 
-	  mov eax, [ebp+12];row=3
-	  mov edx, 80
-	  mul edx ; mul will affect EDX!!!
-	  add eax, [ebp+8];column
-	  shl eax, 1
-	  mov edi, eax
-	  mov edx, [ebp+20]
+  .1:
+    ;mov eax, edi;disregard parameter row 
+    mov eax, [ebp+12];row=3
+    mov edx, 80
+    mul edx ; mul will affect EDX!!!
+    add eax, [ebp+8];column
+    shl eax, 1
+    mov edi, eax
+    mov edx, [ebp+20]
     mov ebx,esi
-	  mov al, byte [ds:(edx+ebx)]
-	  mov ah, 0ch
-	  mov [fs:edi], ax
+    mov al, byte [ds:(edx+ebx)]
+    mov ah, 0ch
+    mov [fs:edi], ax
     inc esi
     inc dword [ebp+8]
-	  LOOP .1
+    LOOP .1
 
     popad
-	  pop edi
-	  pop esi
-	  pop ebp
-	  ret 16
+    pop edi
+    pop esi
+    pop ebp
+    ret 16
 
   ;*** push 20014a7fh, addr; call num2str
-	_r0num2str:
-	r0num2str equ _r0num2str-$$
-	  push  ebp
-	  mov ebp, esp
-	  push  esi
-	  push  edi
+  _r0num2str:
+  r0num2str equ _r0num2str-$$
+    push  ebp
+    mov ebp, esp
+    push  esi
+    push  edi
     pushad
 
     mov edi, dword [ebp+8];address
@@ -495,10 +495,10 @@ start_pmr0code:
     loop .1
 
     popad
-	  pop edi
-	  pop esi
-	  pop ebp
-	  ret 8
+    pop edi
+    pop esi
+    pop ebp
+    ret 8
 
 pmr0code_len equ $-start_pmr0code
 
@@ -519,46 +519,46 @@ start_r3text:
     retf
 
   ;*** push 24msg, 20msg_len, 16row, 12column; call printline
-	_printline:
-	printline equ _printline-$$
-	  push  ebp
-	  mov ebp, esp
-	  push  ebx
-	  push  esi
-	  push  edi
-	
-	  mov ecx, [ebp+16+4];len
+  _printline:
+  printline equ _printline-$$
+    push  ebp
+    mov ebp, esp
+    push  ebx
+    push  esi
+    push  edi
+  
+    mov ecx, [ebp+16+4];len
     mov esi,0
-	.1:
-	  ;mov eax, edi;disregard parameter row 
-	  mov eax, [ebp+12+4];row=3
-	  mov edx, 80
-	  mul edx ; mul will affect EDX!!!
-	  add eax, [ebp+8+4];column
-	  shl eax, 1
-	  mov edi, eax
-	  mov edx, [ebp+20+4]
+  .1:
+    ;mov eax, edi;disregard parameter row 
+    mov eax, [ebp+12+4];row=3
+    mov edx, 80
+    mul edx ; mul will affect EDX!!!
+    add eax, [ebp+8+4];column
+    shl eax, 1
+    mov edi, eax
+    mov edx, [ebp+20+4]
     mov ebx,esi
-	  mov al, byte [ds:(edx+ebx)]
-	  mov ah, 0ch
-	  mov [fs:edi], ax
+    mov al, byte [ds:(edx+ebx)]
+    mov ah, 0ch
+    mov [fs:edi], ax
     inc esi
     inc dword [ebp+8+4]
-	  LOOP .1
+    LOOP .1
 
-	  pop edi
-	  pop esi
-	  pop ebx
-	  pop ebp
-	  retf
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    retf
 
   ;*** push 20014a7fh, addr; call num2str
-	_num2str:
-	num2str equ _num2str-$$
-	  push  ebp
-	  mov ebp, esp
-	  push  esi
-	  push  edi
+  _num2str:
+  num2str equ _num2str-$$
+    push  ebp
+    mov ebp, esp
+    push  esi
+    push  edi
     pushad
 
     mov edi, dword [ebp+12];address
@@ -582,18 +582,18 @@ start_r3text:
     loop .1
 
     popad
-	  pop edi
-	  pop esi
-	  pop ebp
-	  retf
+    pop edi
+    pop esi
+    pop ebp
+    retf
 
   ;*** push 102; call sleep_ms
   _sleep_ms:
   sleep_ms equ _sleep_ms - $$
-	  push  ebp
-	  mov ebp, esp
-	  push  esi
-	  push  edi
+    push  ebp
+    mov ebp, esp
+    push  esi
+    push  edi
     pushad
 
     int 90h
@@ -607,10 +607,10 @@ start_r3text:
     jl .2
 
     popad
-	  pop edi
-	  pop esi
-	  pop ebp
-	  retf
+    pop edi
+    pop esi
+    pop ebp
+    retf
 
     
 r3text_len equ $-start_r3text
@@ -661,10 +661,10 @@ start_ldt1code:
   mov ax, sel_ldt1data
   mov ds, ax
   r3print ldt1dataaddr(p1data),p1data_len,1,1
-	.1:
-	  inc byte [fs:((80 * 1 + p1data_len) * 2)]
+  .1:
+    inc byte [fs:((80 * 1 + p1data_len) * 2)]
     Sleep 1000
-	  jmp .1
+    jmp .1
   jmp $
 ldt1code_len equ $-start_ldt1code
 
@@ -699,10 +699,10 @@ BITS 32
 ALIGN 32
 start_ldt2code:
   r3print ldt2dataaddr(p2data),p2data_len,2,1
-	.1:
-	  inc byte [fs:((80 * 2 + p2data_len) * 2)]
+  .1:
+    inc byte [fs:((80 * 2 + p2data_len) * 2)]
     Sleep 500
-	  jmp .1
+    jmp .1
   jmp $
 
 ldt2code_len equ $-start_ldt2code
@@ -737,10 +737,10 @@ BITS 32
 ALIGN 32
 start_ldt3code:
   r3print ldt3dataaddr(p3data),p3data_len,3,1
-	.1:
-	  inc byte [fs:((80 * 3 + p3data_len) * 2)]
+  .1:
+    inc byte [fs:((80 * 3 + p3data_len) * 2)]
     Sleep 100
-	  jmp .1
+    jmp .1
   jmp $
 ldt3code_len equ $-start_ldt3code
 
@@ -778,8 +778,8 @@ start_ldt4code:
   call proc4
   jmp $
 
-	proc4:
-	.1:
+  proc4:
+  .1:
     call sel_r3text:get_jiffies
     push eax
     push ldt4dataaddr(strx)
@@ -787,8 +787,8 @@ start_ldt4code:
     add esp, 8
     
     r3print ldt4dataaddr(strx),8,4,(p4data_len+2)
-	  jmp .1
-	  ret
+    jmp .1
+    ret
 
     
     
