@@ -214,7 +214,12 @@ start_pmr0code:
     mov ecx, 3
     mul ecx
     add eax, r0addr(keymapdata)
-    printdd eax, 1
+    push eax
+    push 8
+    push 6;row
+    push 1;cloumn
+    call _r0printline
+    ;printdd eax, 1
     ;printdd ebx, 9
 
   .isbreakcode:
