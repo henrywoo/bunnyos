@@ -384,6 +384,7 @@ start_funseg:
   ;*****************
   tmp_ dd 0
   line_ dd 5; starting from line 5
+
 	printline:
 	  push  ebp
 	  mov ebp, esp
@@ -418,6 +419,9 @@ start_funseg:
 	  ;pop ebx
 	  pop ebp
 	  retf
+
+
+
 
   ;*** push 9; call printdigit
   ;push 9
