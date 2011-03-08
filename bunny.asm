@@ -1,10 +1,10 @@
 %include "pm.inc"
 %include "macro.inc"
 %include "proc.asm"
-
 ;********************************************************
 org KERNELADDRABS
 jmp start_real
+
 
 %define r0addr(X) (X-start_pmr0data)
 pos equ 1 ;pos equ (80-bmsg1_len)/2
@@ -50,6 +50,7 @@ PCBEND:
   BSTRING date  , "Date  : 2010-02-13"
   strdd: times 8 db 0
   strdb: times 2 db 0
+  %include "kb.asm" ;keymapdata
 pmr0data_len equ $ - start_pmr0data
 
 

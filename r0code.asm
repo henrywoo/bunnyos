@@ -193,6 +193,9 @@ start_pmr0code:
 
     xor eax,eax
     in al,0x60
+    cmp al, keymapdata_len/3
+    ja .isbreakcode
+    push eax
 
     mov dx,sel_pmr0data
     mov ds,dx
@@ -205,9 +208,23 @@ start_pmr0code:
     mov ebx, dword [r0addr(kbcount)]
     printdd eax, ebx
 
+    call setcursor
+
+    pop eax; for push eax
+    mov ecx, 3
+    mul ecx
+    add eax, r0addr(keymapdata)
+    printdd eax, 1
+    ;printdd ebx, 9
+
+  .isbreakcode:
     mov al, 0x20 ;clear buffer
     out 0x20, al
+    popad
+    pop ds
+    iretd
 
+  setcursor:
     ;*** set cursor
     push 0eh
     push 3d4h
@@ -233,12 +250,8 @@ start_pmr0code:
     push 3d5h
     call out_byte
     ;***
-
-    ;printdd eax, 1
-    ;printdd ebx, 9
-    popad
-    pop ds
-    iretd
+    ret
+    
 
   io_delay:
     nop
