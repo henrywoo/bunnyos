@@ -168,6 +168,7 @@ start_pmr0code:
     iretd
 
   ; printdd eax,ebx
+  %define ROWNUM 5
   %macro printdd 2
     push %1; register name; you want to print its value
     push r0addr(strdd)
@@ -175,17 +176,19 @@ start_pmr0code:
 
     push r0addr(strdd)
     push 8
-    push 6;row
+    push ROWNUM;row
     push %2;cloumn
     call _r0printline
   %endmacro
-
 
   _KeyboardHandler:
   KeyboardHandler equ _KeyboardHandler - $$
     push  ds 
     pushad  
 
+    mov dx,sel_pmr0data
+    mov ds,dx
+    
    .spin:
     in  al, 0x64
     and al, 0x01
@@ -193,41 +196,102 @@ start_pmr0code:
 
     xor eax,eax
     in al,0x60
+    
+    ;cmp al,0xE1
+    ;je nothing
+
+    cmp al,0x0E
+    jne .nothing2
+
+    mov byte [r0addr(kbbuffer)+1],1
+    jmp .isbreakcode
+
+   .nothing2:
+    cmp byte [r0addr(kbbuffer)+1],0
+    jne .isleftornot
+
+   .isleftornot:
+    cmp al,0x8E
+    jne .notleft
+
+   .isleft:
+    dec dword [r0addr(kbcount)]
+    mov eax,dword [r0addr(kbcount)]
+    add eax, 80*ROWNUM+1
+    shl eax, 1
+    call cleartext
+    mov ebx, dword [r0addr(kbcount)]
+    call setcursor
+    jmp .isbreakcode
+
+   .notleft:
+
+    ; if al==0xB6 || al==0xAA ; upper case to lower case
+    cmp al, 0xB6
+    jne .2
+   .3:
+    mov byte [r0addr(kbbuffer)],0
+    jmp .isbreakcode
+   .2:
+    cmp al, 0xAA
+    je .3
+
+    cmp al,0x2A
+    je .isshift
+
+    cmp al,0x36
+    jne .notshift
+
+   .isshift
+    mov byte [r0addr(kbbuffer)], al
+    jmp .isbreakcode
+
+   .notshift
+
     cmp al, keymapdata_len/3
     ja .isbreakcode
     push eax
 
-    mov dx,sel_pmr0data
-    mov ds,dx
-    
-    ;cmp dword [r0addr(kbcount)],0
-    ;je .1
-    ;add dword [r0addr(kbcount)],1;8
-   ;.1:
     inc dword [r0addr(kbcount)]
     mov ebx, dword [r0addr(kbcount)]
-    ;printdd eax, ebx
 
     call setcursor
 
+    ;*** pinpoint char to print
     pop eax; for push eax
-    mov ecx, 3
-    mul ecx
-    add eax, r0addr(keymapdata)
-    push eax
-    push 1;8
-    push 6;row
-    push ebx;cloumn
-    call _r0printline
-    ;printdd eax, 1
-    ;printdd ebx, 9
+    call printkbchar
 
   .isbreakcode:
     mov al, 0x20 ;clear buffer
     out 0x20, al
+
     popad
     pop ds
     iretd
+
+  printkbchar:
+    pushad
+    mov ecx, 3
+    mul ecx
+    add eax, r0addr(keymapdata)
+    cmp byte [r0addr(kbbuffer)],0
+    je .11
+    inc eax
+   .11
+    push eax
+    push 1;8; len
+    push ROWNUM;row
+    push ebx;cloumn
+    call _r0printline
+    popad
+    ret
+
+  cleartext:
+    mov edx, eax
+    mov al, ' '
+    mov ah, 00h
+    mov [fs:edx], ax
+    ret ;4
 
   setcursor:
     pushad
@@ -236,7 +300,7 @@ start_pmr0code:
     push 3d4h
     call out_byte
 
-    add ebx,80*6+7
+    add ebx,80*ROWNUM ; TODO
     shl ebx, 1
 
     mov eax,ebx
@@ -322,7 +386,7 @@ start_pmr0code:
     popad
     ret 4
 
-  ;*** push 24msg, 20msg_len, 16row, 12column; call printline
+  ;*** push 20msg, 16msg_len, 12row, 8column; call printline
   _r0printline:
   r0printline equ _r0printline-$$
     push  ebp

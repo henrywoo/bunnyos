@@ -368,5 +368,6 @@ keymapdata:
 
 keymapdata_len equ $-keymapdata
 
+  kbbuffer dd 0
 
 %endif
