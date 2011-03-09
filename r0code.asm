@@ -200,13 +200,13 @@ start_pmr0code:
     mov dx,sel_pmr0data
     mov ds,dx
     
-    cmp dword [r0addr(kbcount)],0
-    je .1
-    add dword [r0addr(kbcount)],8
-   .1:
+    ;cmp dword [r0addr(kbcount)],0
+    ;je .1
+    ;add dword [r0addr(kbcount)],1;8
+   ;.1:
     inc dword [r0addr(kbcount)]
     mov ebx, dword [r0addr(kbcount)]
-    printdd eax, ebx
+    ;printdd eax, ebx
 
     call setcursor
 
@@ -215,9 +215,9 @@ start_pmr0code:
     mul ecx
     add eax, r0addr(keymapdata)
     push eax
-    push 8
+    push 1;8
     push 6;row
-    push 1;cloumn
+    push ebx;cloumn
     call _r0printline
     ;printdd eax, 1
     ;printdd ebx, 9
@@ -230,6 +230,7 @@ start_pmr0code:
     iretd
 
   setcursor:
+    pushad
     ;*** set cursor
     push 0eh
     push 3d4h
@@ -254,6 +255,7 @@ start_pmr0code:
     push eax;((20/2)&0ffh)
     push 3d5h
     call out_byte
+    popad
     ;***
     ret
     

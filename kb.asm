@@ -188,13 +188,15 @@ keymapdata:
   ; 0x27 - ';'   
   db ';',    ':',    0
   ; 0x28 - '\''    
-  db "\'",   '\"',    0
+  ;db "\'",   '\"',    0
+  db 0x27,   0x22,    0 ; 
   ; 0x29 - '`'   
   db '`',    '~',    0
   ; 0x2A - l. SHIFT  
   db SHIFT_L,  SHIFT_L,  0
   ; 0x2B - '\'   
-  db '\\',   '|',    0
+  ;db '\\',   '|',    0;hex(ord("|"))=0x7c
+  db 5ch,   7ch,    0
   ; 0x2C - 'z'   
   db 'z',    'Z',    0
   ; 0x2D - 'x'   
