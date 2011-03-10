@@ -168,7 +168,7 @@ start_pmr0code:
     iretd
 
   ; printdd eax,ebx
-  %define ROWNUM 5
+  %define ROWNUM 0
   %macro printdd 2
     push %1; register name; you want to print its value
     push r0addr(strdd)
@@ -197,9 +197,33 @@ start_pmr0code:
     xor eax,eax
     in al,0x60
     
-    ;cmp al,0xE1
-    ;je nothing
+    ;*** 1c 9c -> Enter
+    cmp al, 0x1c
+    jne .notentermake
 
+    mov byte [r0addr(kbbuffer)+2],1
+    jmp .isbreakcode
+
+   .notentermake
+    cmp byte [r0addr(kbbuffer)+2],0
+    je .notenter
+
+   .mightbeenter
+    cmp al,0x9c
+    jne .notenter
+
+    ;***is enter
+    mov eax,dword [r0addr(kbcount)]
+    add eax,80*ROWNUM
+    shl eax,1
+    call getnextlineaddr
+    mov ebx, dword [r0addr(kbcount)]
+    call setcursor
+    jmp .isbreakcode
+    
+   .notenter
+
+    ;*** 0E 8E -> backspace 
     cmp al,0x0E
     jne .nothing2
 
@@ -226,7 +250,8 @@ start_pmr0code:
 
    .notleft:
 
-    ; if al==0xB6 || al==0xAA ; upper case to lower case
+    ;*** 36 B6 -> right shift;
+    ;*** if al==0xB6 || al==0xAA ; upper case to lower case
     cmp al, 0xB6
     jne .2
    .3:
@@ -236,6 +261,7 @@ start_pmr0code:
     cmp al, 0xAA
     je .3
 
+    ;*** 2A AA -> left shift
     cmp al,0x2A
     je .isshift
 
@@ -268,6 +294,26 @@ start_pmr0code:
     popad
     pop ds
     iretd
+
+  ;eax = (kbcount + 80*ROWNUM)*2
+  getnextlineaddr:
+    pushad
+    xor edx,edx
+    mov ebx,80*2
+    cmp eax, ebx
+    ja .1
+    mov eax,0
+    jmp .2
+    .1
+    div ebx
+    .2
+    inc eax; current line number + 1
+    mov ebx,80
+    mul ebx
+    sub eax,ROWNUM*80
+    mov dword [r0addr(kbcount)],eax
+    popad
+    ret
 
   printkbchar:
     pushad
