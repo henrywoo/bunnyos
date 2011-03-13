@@ -1,0 +1,11 @@
+Naming Convetion of NASM
+
+header file - h_XXX.asm
+
+const - upper case
+  eg. 
+    DA_32           equ 4000h 
+
+
+macro - lower case and start with mc_
+
