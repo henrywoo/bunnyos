@@ -259,6 +259,40 @@ start_pmr0code:
 
   jmp $
     
+  ;{push pos8; call setcursor
+  setcursor:
+    mc_shortfunc_start
+    push 0eh
+    push 3d4h
+    call out_byte
+
+    mov ebx,dword [ebp+8]
+    add ebx,2
+
+    push ebx
+    call cleartext
+    add esp,4*1
+
+    push ebx
+
+    shr ebx, 9
+    and ebx, 0ffh
+    push ebx ;(((ebx/2)>>8)&0ffh)
+    push 3d5h
+    call out_byte
+
+    push 0fh
+    push 3d4h
+    call out_byte
+
+    pop ebx
+    shr ebx, 1
+    and ebx, 0ffh
+    push ebx;((20/2)&0ffh)
+    push 3d5h
+    call out_byte
+    mc_shortfunc_end;}
+    
 
   ; {ebx-msg_len; ecx-msg
   _PrintfHandler:
@@ -297,7 +331,11 @@ start_pmr0code:
     push ds
     mov dx,sel_pmr0data
     mov ds,dx
+    sub edi,2
     mov dword[ds:cursorpos-start_pmr0data], edi
+    push edi
+    call setcursor
+    add esp,4
     pop ds
 
     popad
@@ -313,7 +351,7 @@ start_pmr0code:
     mov eax, dword [ebp+8]
     mov ebx, 80*2
     xor edx,edx
-    cmp eax, 80*2
+    cmp eax, 80*2-1
     ja .1
     mov eax,0
     jmp .2
@@ -418,20 +456,6 @@ start_pmr0code:
     iretd
 
 
-  ; printdd eax,ebx
-  %define ROWNUM 0
-  %macro printdd 2
-    push %1; register name; you want to print its value
-    push r0addr(strdd)
-    call _r0num2str
-
-    push r0addr(strdd)
-    push 8;msg_len
-    push ROWNUM;row
-    push %2;cloumn
-    call _r0printline
-  %endmacro
-
   _KeyboardHandler:
   KeyboardHandler equ _KeyboardHandler - $$
     push  ds 
@@ -464,12 +488,21 @@ start_pmr0code:
     jne .notenter
 
     ;***is enter
-    mov eax,dword [r0addr(cursorpos)]
-    push eax
+    ;-------------------------------
+    mov ebx, dword [r0addr(cursorpos)]
+    add ebx, 2
+    push ebx
     call getnextlinestart
     add esp, 4
-    mov ebx, eax
+    ;-------------------------------
+
+    sub eax, 2
+    mov dword [r0addr(cursorpos)], eax
+
+    push eax
     call setcursor
+    add esp,4*1
+
     jmp .isbreakcode
     
    .notenter
@@ -490,11 +523,15 @@ start_pmr0code:
     jne .notleft
 
    .isleft:
+    cmp dword [r0addr(cursorpos)],-2 ; when there is nothing in the screen
+    je .isbreakcode
     sub dword [r0addr(cursorpos)],2
-    mov eax,dword [r0addr(cursorpos)]
-    call cleartext
     mov ebx, dword [r0addr(cursorpos)]
+
+    push ebx
     call setcursor
+    add esp,4*1
+
     jmp .isbreakcode
 
    .notleft:
@@ -525,16 +562,17 @@ start_pmr0code:
 
     cmp al, KEYMAPDATA_ROW_NUM
     ja .isbreakcode
-    push eax
 
     add dword [r0addr(cursorpos)],2
-    mov ebx, dword [r0addr(cursorpos)]
-
+    push dword [r0addr(cursorpos)]
     call setcursor
+    add esp, 4*1
 
     ;*** pinpoint char to print
-    pop eax; for push eax
+    push eax
+    push dword [r0addr(cursorpos)]
     call printkbchar
+    add esp, 4*2
 
   .isbreakcode:
     mov al, 0x20 ;clear buffer
@@ -544,60 +582,33 @@ start_pmr0code:
     pop ds
     iretd
 
+  ;push char12,pos8; call ~
   printkbchar:
-    pushad
-    mov ecx, 3
-    mul ecx
+    mc_shortfunc_start
+    mov eax, dword[ebp+12]
+    mov ebx, KEYMAPDATA_COLUMN_NUM
+    mul ebx
     add eax, r0addr(@keymapdata)
-    cmp byte [r0addr(kbbuffer)],0
-    je .11
+    cmp byte [r0addr(kbbuffer)],0 ;shift on or off
+    je .1
     inc eax
-   .11
-    push eax
-    push 1;8; len
-    push ROWNUM;row
-    push ebx;cloumn
+   .1
+    push eax;msg
+    push 1; len
+    push dword[ebp+8];pos
     call _r0printline
-    popad
-    ret
+    add esp,4*3
+    mc_shortfunc_end
 
+  ;push pos; call ~
   cleartext:
-    mov edx, eax
+    mc_shortfunc_start
+    mov edx, [ebp+8]
     mov al, ' '
-    mov ah, 00h
+    mov ah, 0Ah
     mov [fs:edx], ax
-    ret ;4
+    mc_shortfunc_end
 
-  setcursor:
-    pushad
-    ;*** set cursor
-    push 0eh
-    push 3d4h
-    call out_byte
-
-    add ebx,80*ROWNUM ; TODO
-    shl ebx, 1
-
-    mov eax,ebx
-    shr ebx, 9
-    and ebx, 0ffh
-    push ebx ;(((ebx/2)>>8)&0ffh)
-    push 3d5h
-    call out_byte
-
-    push 0fh
-    push 3d4h
-    call out_byte
-
-    shr eax, 1
-    and eax, 0ffh
-    push eax;((20/2)&0ffh)
-    push 3d5h
-    call out_byte
-    popad
-    ;***
-    ret
-    
 
   io_delay:
     nop
@@ -642,13 +653,15 @@ start_pmr0code:
 
   ;*** push value(8), port(4); call out_byte
   out_byte:
+    push ebp
     mov ebp,esp
     pushad
-    mov dx, word [ebp + 4]    ; port
-    mov al, byte [ebp + 8] ; value
+    mov dx, word [ebp + 8]    ; port
+    mov al, byte [ebp + 12] ; value
     out dx, al
     call io_delay
     popad
+    pop ebp
     ret 8
 
   in_byte:
@@ -661,40 +674,31 @@ start_pmr0code:
     popad
     ret 4
 
-  ;*** push 20msg, 16msg_len, 12row, 8column; call printline
+  ; push 16msg, 12msg_len, 8pos; call printline
   _r0printline:
   r0printline equ _r0printline-$$
     push  ebp
     mov ebp, esp
-    push  esi
     push  edi
     pushad
   
-    mov ecx, [ebp+16];len
-    mov esi,0
+    mov ecx, [ebp+12];len
+    mov edi, [ebp+8];pos
+    mov ebx,0
   .1:
     ;mov eax, edi;disregard parameter row 
-    mov eax, [ebp+12];row=3
-    mov edx, 80
-    mul edx ; mul will affect EDX!!!
-    add eax, [ebp+8];column
-    shl eax, 1
-
-    mov edi, eax
-    mov edx, [ebp+20]
-    mov ebx,esi
+    mov edx, [ebp+16]
     mov al, byte [ds:(edx+ebx)]
     mov ah, 0Dh
     mov [fs:edi], ax
-    inc esi
-    inc dword [ebp+8]
+    inc ebx
+    add edi, 2
     LOOP .1
 
     popad
     pop edi
-    pop esi
     pop ebp
-    ret 16
+    ret
 
   ;*** push 20014a7fh, addr; call num2str
   _r0num2str:

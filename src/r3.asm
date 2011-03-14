@@ -195,7 +195,8 @@ ALIGN 32
 start_ldt1data:
   mc_string p1data, "Proc 1 in ring 3 - sleep 10s -  "
   mc_string p1strfmt, "%s %d"
-  mc_string p1name, {"simonwoo", 0Ah, "Fuheng", 0ah, "Hello!", 0ah}
+  mc_string p1name, {"simonwoo", 0Ah,"s"}
+  ;mc_string p1name, {"simonwoo"}
 ldt1data_len equ $-start_ldt1data
 
 ;*********************************************************************
@@ -250,7 +251,7 @@ ldt2data_len equ $-start_ldt2data
 BITS 32
 ALIGN 32
 start_ldt2code:
-  bunny_printf(ldt2dataaddr(p2data),p2data_len)
+  ;;;;bunny_printf(ldt2dataaddr(p2data),p2data_len)
 
   ;r3print ldt2dataaddr(p2data),p2data_len,2,1
   ;.1:
@@ -291,7 +292,7 @@ ldt3data_len equ $-start_ldt3data
 BITS 32
 ALIGN 32
 start_ldt3code:
-  bunny_printf(ldt2dataaddr(p2data),p2data_len)
+  ;;;;bunny_printf(ldt2dataaddr(p2data),p2data_len)
   ;r3print ldt3dataaddr(p3data),p3data_len,3,1
   ;call sel_r3text:getpid
   ;push eax
@@ -336,7 +337,7 @@ ldt4data_len equ $-start_ldt4data
 BITS 32
 ALIGN 32
 start_ldt4code:
-  bunny_printf(ldt4dataaddr(p4data),p4data_len)
+  ;;;;bunny_printf(ldt4dataaddr(p4data),p4data_len)
   ;r3print ldt4dataaddr(p4data),p4data_len,4,1
   ;call proc4
   ;jmp $

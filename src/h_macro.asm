@@ -240,4 +240,16 @@ bunny_p %+ %1:
     retf
 %endmacro
 
+%macro mc_shortfunc_start 0
+    push  ebp
+    mov ebp, esp
+    pushad
+%endmacro
+
+%macro mc_shortfunc_end 0
+    popad
+    pop ebp
+    ret
+%endmacro
+
 %endif
