@@ -35,7 +35,6 @@ start_pmr0data:
   reenter   dd -1
   jiffies   dd 0
   
-  kbcount   dd 0
   pidcount  dd 0
 
   mc_string bmsg1, "BunnyOS 1.0"
@@ -50,8 +49,7 @@ start_pmr0data:
   strdb: times 2 db 0
   mc_data_keyboard
   kbbuffer dd 0
- cursorpos:
-  times 4 dd 0 ;cursor position
+  cursorpos dd 0
 pmr0data_len equ $ - start_pmr0data
 
 
@@ -294,7 +292,6 @@ start_pmr0code:
   .3
     inc edx
     loop .1big
-    ;mov byte[p1name-start_ldt1data],0a0h
     
     ; TODO
     push ds
@@ -467,11 +464,11 @@ start_pmr0code:
     jne .notenter
 
     ;***is enter
-    mov eax,dword [r0addr(kbcount)]
-    add eax,80*ROWNUM
-    shl eax,1
-    call getnextlineaddr
-    mov ebx, dword [r0addr(kbcount)]
+    mov eax,dword [r0addr(cursorpos)]
+    push eax
+    call getnextlinestart
+    add esp, 4
+    mov ebx, eax
     call setcursor
     jmp .isbreakcode
     
@@ -493,12 +490,10 @@ start_pmr0code:
     jne .notleft
 
    .isleft:
-    dec dword [r0addr(kbcount)]
-    mov eax,dword [r0addr(kbcount)]
-    add eax, 80*ROWNUM+1
-    shl eax, 1
+    sub dword [r0addr(cursorpos)],2
+    mov eax,dword [r0addr(cursorpos)]
     call cleartext
-    mov ebx, dword [r0addr(kbcount)]
+    mov ebx, dword [r0addr(cursorpos)]
     call setcursor
     jmp .isbreakcode
 
@@ -532,8 +527,8 @@ start_pmr0code:
     ja .isbreakcode
     push eax
 
-    inc dword [r0addr(kbcount)]
-    mov ebx, dword [r0addr(kbcount)]
+    add dword [r0addr(cursorpos)],2
+    mov ebx, dword [r0addr(cursorpos)]
 
     call setcursor
 
@@ -548,26 +543,6 @@ start_pmr0code:
     popad
     pop ds
     iretd
-
-  ;eax = (kbcount + 80*ROWNUM)*2
-  getnextlineaddr:
-    pushad
-    xor edx,edx
-    mov ebx,80*2
-    cmp eax, ebx
-    ja .1
-    mov eax,0
-    jmp .2
-    .1
-    div ebx
-    .2
-    inc eax; current line number + 1
-    mov ebx,80
-    mul ebx
-    sub eax,ROWNUM*80
-    mov dword [r0addr(kbcount)],eax
-    popad
-    ret
 
   printkbchar:
     pushad
