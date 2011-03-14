@@ -262,8 +262,74 @@ start_pmr0code:
   jmp $
     
 
+  ; {ebx-msg_len; ecx-msg
+  _PrintfHandler:
+  PrintfHandler equ _PrintfHandler - $$
+    pushad  
+    ; TODO
+    push ds
+    mov dx,sel_pmr0data
+    mov ds,dx
+    mov edi,dword[ds:cursorpos-start_pmr0data]
+    pop ds
 
+    ;push ecx;len
+    ;push ebx;msg
+    mov edx, 0
+  .1big
+    mov al, byte[ebx+edx]
+    cmp al, 0Ah; \n
+    je .2
+    mov ah, 0Eh
+    mov [fs:edi], ax
+    add edi, 2
+    jmp .3
+  .2
+    push eax
+    push edi
+    call getnextlinestart; call是看代码段,has nothing to do with DS
+    add esp, 4
+    mov edi, eax
+    pop eax    
+  .3
+    inc edx
+    loop .1big
+    ;mov byte[p1name-start_ldt1data],0a0h
+    
+    ; TODO
+    push ds
+    mov dx,sel_pmr0data
+    mov ds,dx
+    mov dword[ds:cursorpos-start_pmr0data], edi
+    pop ds
 
+    popad
+    iretd;}
+
+  ; push curpos; call ~;result in eax -> the addr of next line start
+  getnextlinestart:
+    push ebp
+    mov ebp,esp
+    push ebx
+    push edx
+
+    mov eax, dword [ebp+8]
+    mov ebx, 80*2
+    xor edx,edx
+    cmp eax, 80*2
+    ja .1
+    mov eax,0
+    jmp .2
+   .1
+    div ebx
+   .2
+    inc eax; current line number + 1
+    mul ebx
+
+    pop edx
+    pop ebx
+    pop ebp
+    ret
 
 
   ;*** R0_Function ***
@@ -354,23 +420,6 @@ start_pmr0code:
     pop ds
     iretd
 
-  ; ebx-msg_len; ecx-msg
-  _PrintfHandler:
-  PrintfHandler equ _PrintfHandler - $$
-    push ds 
-    pushad  
-    
-    mov dx,sel_r3data
-    mov ds,dx
-    mov byte[r3str-start_r3data],0a0h
-    
-    mov dx,sel_ldt1data
-    mov ds,dx
-    mov byte[p1name-start_ldt1data],0a0h
-    
-    popad
-    pop ds
-    iretd
 
   ; printdd eax,ebx
   %define ROWNUM 0
@@ -655,6 +704,7 @@ start_pmr0code:
     mul edx ; mul will affect EDX!!!
     add eax, [ebp+8];column
     shl eax, 1
+
     mov edi, eax
     mov edx, [ebp+20]
     mov ebx,esi

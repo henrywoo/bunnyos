@@ -55,8 +55,8 @@ start_r3text:
     ;mc_func_end
     push  ebp
     mov ebp, esp
-    mov ebx,[ebp+12]
-    mov ecx,[ebp+16]
+    mov ecx,[ebp+12]
+    mov ebx,[ebp+16]
     pop ebp
     int 92h
     retf
@@ -165,7 +165,13 @@ r3text_len equ $-start_r3text
     add esp, 4
 %endmacro
 
-
+%macro _printf_ 2
+  push %1;msg
+  push %2;len
+  call sel_r3text:printf
+  add esp, 4*2
+%endmacro
+%define bunny_printf(msg_,len_) _printf_ msg_,len_
 ;*********************************************************************
 [SECTION ldt1]
 BITS 32
@@ -189,7 +195,7 @@ ALIGN 32
 start_ldt1data:
   mc_string p1data, "Proc 1 in ring 3 - sleep 10s -  "
   mc_string p1strfmt, "%s %d"
-  mc_string p1name, "simonwoo"
+  mc_string p1name, {"simonwoo", 0Ah, "Fuheng", 0ah, "Hello!", 0ah}
 ldt1data_len equ $-start_ldt1data
 
 ;*********************************************************************
@@ -200,10 +206,11 @@ start_ldt1code:
   mov ax, sel_ldt1data
   mov ds, ax
 
-  push ldt1dataaddr(p1name)
-  push p1name_len
-  call sel_r3text:printf
-  add esp, 4*2
+  bunny_printf(ldt1dataaddr(p1name),p1name_len)
+  ;push ldt1dataaddr(p1name)
+  ;push p1name_len
+  ;call sel_r3text:printf
+  ;add esp, 4*2
 
   ;r3print ldt1dataaddr(p1data),p1data_len,1,1
   ;.1:
@@ -235,7 +242,7 @@ ldt2_len equ $-start_ldt2
 BITS 32
 ALIGN 32
 start_ldt2data:
-  mc_string p2data, "I am proc 2 in ring 3 - sleep 5s -  "
+  mc_string p2data, {"I am proc 2 in ring 3 - sleep 5s -  ",0ah}
 ldt2data_len equ $-start_ldt2data
 
 ;*********************************************************************
@@ -243,11 +250,13 @@ ldt2data_len equ $-start_ldt2data
 BITS 32
 ALIGN 32
 start_ldt2code:
-  r3print ldt2dataaddr(p2data),p2data_len,2,1
-  .1:
-    inc byte [fs:((80 * 2 + p2data_len) * 2)]
-    Sleep 500
-    jmp .1
+  bunny_printf(ldt2dataaddr(p2data),p2data_len)
+
+  ;r3print ldt2dataaddr(p2data),p2data_len,2,1
+  ;.1:
+  ;  inc byte [fs:((80 * 2 + p2data_len) * 2)]
+  ;  Sleep 500
+  ;  jmp .1
   jmp $
 
 ldt2code_len equ $-start_ldt2code
@@ -273,7 +282,7 @@ ldt3_len equ $-start_ldt3
 BITS 32
 ALIGN 32
 start_ldt3data:
-  mc_string p3data, "I am proc 3 in ring 3 - sleep 1s -  "
+  mc_string p3data, {"I am proc 3 in ring 3 - sleep 1s -  ",0ah}
   pid3: times 8 db 0
 ldt3data_len equ $-start_ldt3data
 
@@ -282,17 +291,18 @@ ldt3data_len equ $-start_ldt3data
 BITS 32
 ALIGN 32
 start_ldt3code:
-  r3print ldt3dataaddr(p3data),p3data_len,3,1
-  call sel_r3text:getpid
-  push eax
-  push ldt3dataaddr(pid3)
-  call sel_r3text:num2str
-  add esp, 8
-  r3print ldt3dataaddr(pid3),8,3,(p3data_len+6)
-  .1:
-    inc byte [fs:((80 * 3 + p3data_len) * 2)]
-    Sleep 100
-    jmp .1
+  bunny_printf(ldt2dataaddr(p2data),p2data_len)
+  ;r3print ldt3dataaddr(p3data),p3data_len,3,1
+  ;call sel_r3text:getpid
+  ;push eax
+  ;push ldt3dataaddr(pid3)
+  ;call sel_r3text:num2str
+  ;add esp, 8
+  ;r3print ldt3dataaddr(pid3),8,3,(p3data_len+6)
+  ;.1:
+  ;  inc byte [fs:((80 * 3 + p3data_len) * 2)]
+  ;  Sleep 100
+  ;  jmp .1
   jmp $
 ldt3code_len equ $-start_ldt3code
 
@@ -326,20 +336,22 @@ ldt4data_len equ $-start_ldt4data
 BITS 32
 ALIGN 32
 start_ldt4code:
-  r3print ldt4dataaddr(p4data),p4data_len,4,1
-  call proc4
-  jmp $
+  bunny_printf(ldt4dataaddr(p4data),p4data_len)
+  ;r3print ldt4dataaddr(p4data),p4data_len,4,1
+  ;call proc4
+  ;jmp $
 
-  proc4:
-  .1:
-    call sel_r3text:get_jiffies
-    push eax
-    push ldt4dataaddr(strx)
-    call sel_r3text:num2str
-    add esp, 8
-    r3print ldt4dataaddr(strx),8,4,(p4data_len+2)
-    jmp .1
-    ret
+  ;proc4:
+  ;.1:
+  ;  call sel_r3text:get_jiffies
+  ;  push eax
+  ;  push ldt4dataaddr(strx)
+  ;  call sel_r3text:num2str
+  ;  add esp, 8
+  ;  r3print ldt4dataaddr(strx),8,4,(p4data_len+2)
+  ;  jmp .1
+  ;  ret
+  jmp $
 
     
     
