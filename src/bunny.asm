@@ -259,26 +259,32 @@ start_pmr0code:
 
   jmp $
 
-  ;{push start_address
+  ;{push line_number
   setscreen:
     mc_shortfunc_start
     mov eax, dword [ebp+8]
 
-    mov ebx, eax
-    shr ebx, 8
-    push ebx
+    push 0ch
     push 0x3d4
     call out_byte
     
-    push ((80*1)>>8)&0xff; 1 - absolute value, index of line in screen!
+    mov ecx, 80
+    mul ecx
+
+    mov ebx, eax
+    shr ebx, 8
+    and ebx, 0xff
+    push ebx; ((80*2)>>8)&0xff; 1 - absolute value, index of line in screen!
     push 0x3d5
     call out_byte
 
-    push eax
+    push 0dh
     push 0x3d4
     call out_byte
     
-    push (80*1)&0xff
+    mov ebx, eax
+    and ebx, 0xff
+    push ebx;(80*2)&0xff
     push 0x3d5
     call out_byte
 
@@ -606,13 +612,13 @@ start_pmr0code:
     jmp .isbreakcode
 
   .pageup
-    push 0c0dh
+    push 1
     call setscreen
     add esp, 4*1
     jmp .isbreakcode
 
   .pagedown
-    push 0c0dh
+    push 2
     call setscreen
     add esp, 4*1
     jmp .isbreakcode
