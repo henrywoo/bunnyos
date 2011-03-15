@@ -258,6 +258,31 @@ start_pmr0code:
   retf
 
   jmp $
+
+  ;{push start_address
+  setscreen:
+    mc_shortfunc_start
+    mov eax, dword [ebp+8]
+
+    mov ebx, eax
+    shr ebx, 8
+    push ebx
+    push 0x3d4
+    call out_byte
+    
+    push ((80*1)>>8)&0xff; 1 - absolute value, index of line in screen!
+    push 0x3d5
+    call out_byte
+
+    push eax
+    push 0x3d4
+    call out_byte
+    
+    push (80*1)&0xff
+    push 0x3d5
+    call out_byte
+
+    mc_shortfunc_end;}
     
   ;{push pos8; call setcursor
   setcursor:
@@ -536,12 +561,11 @@ start_pmr0code:
 
    .notleft:
 
-    ;*** 36 B6 -> right shift;
     ;*** if al==0xB6 || al==0xAA ; upper case to lower case
     cmp al, 0xB6
     jne .2
    .3:
-    mov byte [r0addr(kbbuffer)],0
+    mov byte [r0addr(kbbuffer)],0;shift弹起->清零
     jmp .isbreakcode
    .2:
     cmp al, 0xAA
@@ -551,17 +575,23 @@ start_pmr0code:
     cmp al,0x2A
     je .isshift
 
+    ;*** 36 B6 -> right shift;
     cmp al,0x36
     jne .notshift
 
-   .isshift
+   .isshift:
     mov byte [r0addr(kbbuffer)], al
     jmp .isbreakcode
 
-   .notshift
-
+   .notshift:
     cmp al, KEYMAPDATA_ROW_NUM
     ja .isbreakcode
+
+    cmp al, 0x16;u
+    je .pageup
+
+    cmp al, 0x20;d
+    je .pagedown
 
     add dword [r0addr(cursorpos)],2
     push dword [r0addr(cursorpos)]
@@ -573,7 +603,20 @@ start_pmr0code:
     push dword [r0addr(cursorpos)]
     call printkbchar
     add esp, 4*2
+    jmp .isbreakcode
 
+  .pageup
+    push 0c0dh
+    call setscreen
+    add esp, 4*1
+    jmp .isbreakcode
+
+  .pagedown
+    push 0c0dh
+    call setscreen
+    add esp, 4*1
+    jmp .isbreakcode
+    
   .isbreakcode:
     mov al, 0x20 ;clear buffer
     out 0x20, al
@@ -657,7 +700,7 @@ start_pmr0code:
     mov ebp,esp
     pushad
     mov dx, word [ebp + 8]    ; port
-    mov al, byte [ebp + 12] ; value
+    mov al, byte [ebp + 12] ; value - get lowest 8 bits
     out dx, al
     call io_delay
     popad
