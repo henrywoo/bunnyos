@@ -243,22 +243,6 @@ bunny_p %+ %1:
   mov byte [%1+7], ah
 %endmacro
 
-%macro mc_func_start 0
-    push  ebp
-    mov ebp, esp
-    push  ebx
-    push  esi
-    push  edi
-%endmacro
-
-%macro mc_func_end 0
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    retf
-%endmacro
-
 %macro mc_shortfunc_start 0
     push  ebp
     mov ebp, esp
@@ -270,5 +254,13 @@ bunny_p %+ %1:
     pop ebp
     ret
 %endmacro
+
+%macro _mc_out_byte 2
+  push %1
+  push %2
+  call out_byte
+%endmacro
+
+%define mc_out_byte(X,Y) _mc_out_byte X,Y
 
 %endif

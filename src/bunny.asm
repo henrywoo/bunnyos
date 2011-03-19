@@ -23,7 +23,6 @@
 org KERNELADDRABS
 jmp start_real
 
-
 %define r0addr(X) (X-start_pmr0data)
 pos equ 1 ;pos equ (80-bmsg1_len)/2
 
@@ -164,18 +163,7 @@ sel_r3data    equ GDT_r3data-GDT_1+011b
 BITS 32
 ALIGN 32
 start_idt:
-%rep 20h
-        mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
-%endrep
-.020h:  mc_descp_gate sel_pmr0code,ClockHandler,    0,DA_386Imc_descp_gate
-.021h:  mc_descp_gate sel_pmr0code,KeyboardHandler, 0,DA_386Imc_descp_gate
-%rep 6eh
-        mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
-%endrep
-.090h:  mc_descp_gate sel_pmr0code,JiffiesHandler,  0,DA_386Imc_descp_gate+DA_DPL3
-.091h:  mc_descp_gate sel_pmr0code,GetPidHandler,  0,DA_386Imc_descp_gate+DA_DPL3
-.092h:  mc_descp_gate sel_pmr0code,PrintfHandler,  0,DA_386Imc_descp_gate+DA_DPL3
-
+%include "idt.asm"
 idt_len  equ $-start_idt
 idtptr  dw idt_len-1
         dd 0
@@ -212,22 +200,17 @@ start_pmr0code:
   mov ax, sel_tss
   ltr ax
 
+  ;mov al, byte [0x475]; the number of harddisk
   call Init8259A
 
   ;*** set 10ms interrupt (8253 control register)
-  push RATE_GENERATOR
-  push TIMER_MODE
-  call out_byte
+  mc_out_byte(RATE_GENERATOR,TIMER_MODE)
   call io_delay
 
-  push TIMER_FREQ/HZ
-  push TIMER0
-  call out_byte
+  mc_out_byte(TIMER_FREQ/HZ,TIMER0)
   call io_delay
 
-  push ((TIMER_FREQ/HZ) >>8)
-  push TIMER0
-  call out_byte
+  mc_out_byte(((TIMER_FREQ/HZ) >>8),TIMER0)
   call io_delay
 
   ;mov al, 34h
@@ -282,39 +265,27 @@ start_pmr0code:
   ;{push line_number
   setscreen:
     mc_shortfunc_start
-    mov eax, dword [ebp+8]
-
-    push 0ch
-    push 0x3d4
-    call out_byte
+    mc_out_byte(0ch,3d4h)
     
+    mov eax, dword [ebp+8]
     mov ecx, 80
     mul ecx
-
     mov ebx, eax
     shr ebx, 8
-    and ebx, 0xff
-    push ebx; ((80*2)>>8)&0xff; 1 - absolute value, index of line in screen!
-    push 0x3d5
-    call out_byte
+    and ebx, 0xff ; ((80*2)>>8)&0xff; 1 - absolute value, index of line in screen!
+    mc_out_byte(ebx,3d5h)
 
-    push 0dh
-    push 0x3d4
-    call out_byte
+    mc_out_byte(0dh,3d4h)
     
     mov ebx, eax
-    and ebx, 0xff
-    push ebx;(80*2)&0xff
-    push 0x3d5
-    call out_byte
+    and ebx, 0xff;(80*2)&0xff
+    mc_out_byte(ebx,3d5h)
     mc_shortfunc_end;}
     
   ;{push position of cursor(=cursorpos+2); call setcursor
   setcursor:
     mc_shortfunc_start
-    push 0eh
-    push 3d4h
-    call out_byte
+    mc_out_byte(0eh,3d4h)
 
     mov ebx,dword [ebp+8]
 
@@ -325,21 +296,15 @@ start_pmr0code:
     mov ecx, ebx
 
     shr ebx, 9
-    and ebx, 0ffh
-    push ebx ;(((ebx/2)>>8)&0ffh)
-    push 3d5h
-    call out_byte
+    and ebx, 0ffh ;(((ebx/2)>>8)&0ffh)
+    mc_out_byte(ebx,3d5h)
 
-    push 0fh
-    push 3d4h
-    call out_byte
+    mc_out_byte(0fh,3d4h)
 
     mov ebx,ecx
     shr ebx, 1
-    and ebx, 0ffh
-    push ebx;((pos/2)&0ffh)
-    push 3d5h
-    call out_byte
+    and ebx, 0ffh ;((pos/2)&0ffh)
+    mc_out_byte(ebx,3d5h)
 
     ; update currentline value
     ; note: current cursor's line
@@ -512,6 +477,23 @@ start_pmr0code:
 
     mov ah, 0dh
     mov al, 'X'
+    inc dword [r0addr(cursorpos)]
+    mov edx, dword [r0addr(cursorpos)]
+    mov [fs:edx], ax
+
+    popad
+    pop ds
+    iretd
+
+  _HWHandler:
+  HWHandler equ _HWHandler - $$
+    push  ds 
+    pushad  
+    mov dx,sel_pmr0data
+    mov ds,dx
+
+    mov ah, 0dh
+    mov al, 'Y'
     inc dword [r0addr(cursorpos)]
     mov edx, dword [r0addr(cursorpos)]
     mov [fs:edx], ax
@@ -723,13 +705,11 @@ start_pmr0code:
     call  io_delay
     out 0A1h, al  ; 从8259, ICW4.
     call  io_delay
-    ;mov  al, 11111111b ; 屏蔽主8259所有中断
-    ;mov al, 11111110b ; 仅仅开启定时器中断
-    mov al, 11111100b ;keyboard and timer
-    out 021h, al  ; 主8259, OCW1.
+    mov al, 11111000b ;keyboard and timer and cascade
+    out 021h, al  ;master 8259, OCW1.
     call  io_delay
-    mov al, 11111111b ; 屏蔽从8259所有中断
-    out 0A1h, al  ; 从8259, OCW1.
+    mov al, 10101111b ;slave
+    out 0A1h, al  ;slave 8259, OCW1.
     call  io_delay
     ret
 

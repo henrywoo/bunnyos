@@ -45,7 +45,6 @@ start_r3text:
     int 91h
     retf
 
-
   ;printf(const char*fmt,...);
   _printf:
   printf equ _printf-$$ ; push str16,str_len12
@@ -60,8 +59,6 @@ start_r3text:
     pop ebp
     int 92h
     retf
-    
-  
 
   ;*** push 24msg, 20msg_len, 16row, 12column; call printline
   _printline:
@@ -146,10 +143,8 @@ start_r3text:
     pop esi
     pop ebp
     retf
-
     
 r3text_len equ $-start_r3text
-
 
 %macro r3print 4
     push %1;msg
@@ -159,6 +154,7 @@ r3text_len equ $-start_r3text
     call sel_r3text:printline ;*** far call
     add esp, 16
 %endmacro
+
 %macro Sleep 1
     push %1
     call sel_r3text:sleep_ms
@@ -187,16 +183,16 @@ sel_ldt1stack equ ldt1_3-ldt1_1+111b
 
 ldt1_len equ $-start_ldt1
 
+; harddisk process
 ;*********************************************************************
 %define ldt1dataaddr(X) (X-start_ldt1data)
 [SECTION ldt1DATA]
 BITS 32
 ALIGN 32
 start_ldt1data:
-  mc_string p1data, "Proc 1 in ring 3."
-  mc_string p1strfmt, "%s %d"
+  mc_string p1data, {"hardisk process is running",0Ah}
+  ;mc_string p1strfmt, "%s %d"
   ;mc_string p1name, {"Process 1", 0Ah," +printf", 0ah, 0Ah}
-  mc_string p1name, {"Proc 1 in ring3",0ah}
   ;mc_string p1name, {"simonwoo"}
 ldt1data_len equ $-start_ldt1data
 
@@ -207,7 +203,7 @@ ALIGN 32
 start_ldt1code:
   mov ax, sel_ldt1data
   mov ds, ax
-  bunny_printf(ldt1dataaddr(p1name),p1name_len)
+  bunny_printf(ldt1dataaddr(p1data),p1data_len)
   ;push ldt1dataaddr(p1name)
   ;push p1name_len
   ;call sel_r3text:printf
@@ -285,7 +281,7 @@ ldt3_len equ $-start_ldt3
 BITS 32
 ALIGN 32
 start_ldt3data:
-  mc_string p3data, {"I am proc 3 in ring 3"}
+  mc_string p3data, {"I am proc 3 in ring 3.", 0ah}
   pid3: times 8 db 0
 ldt3data_len equ $-start_ldt3data
 
@@ -341,21 +337,23 @@ ldt4data_len equ $-start_ldt4data
 BITS 32
 ALIGN 32
 start_ldt4code:
-  ;;;;bunny_printf(ldt4dataaddr(p4data),p4data_len)
+  bunny_printf(ldt4dataaddr(p4data),p4data_len)
   ;r3print ldt4dataaddr(p4data),p4data_len,4,1
-  ;call proc4
+  call proc4
   ;jmp $
 
-  ;proc4:
-  ;.1:
-  ;  call sel_r3text:get_jiffies
-  ;  push eax
-  ;  push ldt4dataaddr(strx)
-  ;  call sel_r3text:num2str
-  ;  add esp, 8
-  ;  r3print ldt4dataaddr(strx),8,4,(p4data_len+2)
-  ;  jmp .1
-  ;  ret
+  proc4:
+  .1:
+    call sel_r3text:get_jiffies
+    push eax
+    push ldt4dataaddr(strx)
+    call sel_r3text:num2str
+    add esp, 8
+    ;bunny_printf(ldt4dataaddr(strx),8)
+    r3print ldt4dataaddr(strx),8,3,(p4data_len+2)
+    Sleep 10000
+    jmp .1
+    ret
   jmp $
 
     
