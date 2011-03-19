@@ -1,3 +1,22 @@
+; BunnyOS 1.0
+;
+; Copyright (C) 2011 Wu Fuheng.
+;
+; BunnyOS is free software;  you can  redistribute it and/or modify it under
+; the terms of the GNU LESSER GENERAL PUBLIC LICENSE as published by the
+; Free Software Foundation; either version 2.1, or (at your option)  any
+; later version.
+; 
+; BunnyOS is distributed in the hope that it will be useful, but WITHOUT ANY
+; WARRANTY; without  even  the  implied  warranty  of MERCHANTABILITY or
+; FITNESS FOR A PARTICULAR PURPOSE.  See the  GNU General Public License
+; for more details.
+; 
+; You  should  have  received  a  copy of the GNU General Public License
+; along  with  BunnyOS;  see the  file COPYING.  If not, please write to the
+; Free Software Foundation,  51 Franklin Street, Fifth Floor, Boston, MA
+; 02110-1301, USA.
+
 %include "h_macro.asm"
 %include "h_const.asm"
 
@@ -50,6 +69,7 @@ start_pmr0data:
   mc_data_keyboard
   kbbuffer dd 0
   cursorpos dd 0
+  curstartline dd 0
 pmr0data_len equ $ - start_pmr0data
 
 
@@ -287,10 +307,9 @@ start_pmr0code:
     push ebx;(80*2)&0xff
     push 0x3d5
     call out_byte
-
     mc_shortfunc_end;}
     
-  ;{push pos8; call setcursor
+  ;{push position of cursor(=cursorpos+2); call setcursor
   setcursor:
     mc_shortfunc_start
     push 0eh
@@ -298,13 +317,12 @@ start_pmr0code:
     call out_byte
 
     mov ebx,dword [ebp+8]
-    add ebx,2
 
     push ebx
     call cleartext
     add esp,4*1
 
-    push ebx
+    mov ecx, ebx
 
     shr ebx, 9
     and ebx, 0ffh
@@ -316,24 +334,41 @@ start_pmr0code:
     push 3d4h
     call out_byte
 
-    pop ebx
+    mov ebx,ecx
     shr ebx, 1
     and ebx, 0ffh
-    push ebx;((20/2)&0ffh)
+    push ebx;((pos/2)&0ffh)
     push 3d5h
     call out_byte
+
+    ; update currentline value
+    ; note: current cursor's line
+    xor edx, edx
+    mov eax, ecx
+    mov ebx, 80*2
+    cmp eax, ebx
+    jl .noscroll
+    div ebx
+    mov ebx, dword[r0addr(curstartline)]
+    add ebx, 25
+    cmp eax, ebx
+    jl .noscroll
+    inc dword [r0addr(curstartline)]
+    push dword [r0addr(curstartline)]
+    call setscreen
+    add esp, 4
+   .noscroll
     mc_shortfunc_end;}
     
-
   ; {ebx-msg_len; ecx-msg
   _PrintfHandler:
   PrintfHandler equ _PrintfHandler - $$
     pushad  
     ; TODO
-    push ds
+    push ds ; Get current position of cursor and put it into edi
     mov dx,sel_pmr0data
     mov ds,dx
-    mov edi,dword[ds:cursorpos-start_pmr0data]
+    mov edi,dword[r0addr(cursorpos)]
     pop ds
 
     ;push ecx;len
@@ -345,12 +380,12 @@ start_pmr0code:
     je .2
     mov ah, 0Eh
     mov [fs:edi], ax
-    add edi, 2
+    add edi, 2;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;Add currentpos
     jmp .3
   .2
     push eax
     push edi
-    call getnextlinestart; call是看代码段,has nothing to do with DS
+    call getnextlinestart; call是看CS,has nothing to do with DS
     add esp, 4
     mov edi, eax
     pop eax    
@@ -362,8 +397,7 @@ start_pmr0code:
     push ds
     mov dx,sel_pmr0data
     mov ds,dx
-    sub edi,2
-    mov dword[ds:cursorpos-start_pmr0data], edi
+    mov dword[r0addr(cursorpos)], edi
     push edi
     call setcursor
     add esp,4
@@ -461,7 +495,7 @@ start_pmr0code:
     mov ebx,dword[r0addr(curPCB)]
     add ebx,(sel_ldt1_-gs_1);*** = 0x44 
     mov ecx,(sel_ldt1_-gs_1)/4 ;*** = 0x11
-  .mmmove:
+   .mmmove:
     sub ebx,4
     mov edx,[esp+ecx*4-4]
     mov dword[ebx], edx
@@ -486,7 +520,7 @@ start_pmr0code:
     pop ds
     iretd
 
-
+  ;{
   _KeyboardHandler:
   KeyboardHandler equ _KeyboardHandler - $$
     push  ds 
@@ -521,13 +555,11 @@ start_pmr0code:
     ;***is enter
     ;-------------------------------
     mov ebx, dword [r0addr(cursorpos)]
-    add ebx, 2
     push ebx
     call getnextlinestart
     add esp, 4
     ;-------------------------------
 
-    sub eax, 2
     mov dword [r0addr(cursorpos)], eax
 
     push eax
@@ -593,43 +625,44 @@ start_pmr0code:
     cmp al, KEYMAPDATA_ROW_NUM
     ja .isbreakcode
 
-    cmp al, 0x16;u
-    je .pageup
+   ; cmp al, 0x16;u
+   ; je .pageup
 
-    cmp al, 0x20;d
-    je .pagedown
-
-    add dword [r0addr(cursorpos)],2
-    push dword [r0addr(cursorpos)]
-    call setcursor
-    add esp, 4*1
+   ; cmp al, 0x20;d
+   ; je .pagedown
 
     ;*** pinpoint char to print
     push eax
     push dword [r0addr(cursorpos)]
     call printkbchar
     add esp, 4*2
+
+    add dword [r0addr(cursorpos)],2
+    push dword [r0addr(cursorpos)]
+    call setcursor
+    add esp, 4*1
+
     jmp .isbreakcode
 
-  .pageup
-    push 1
-    call setscreen
-    add esp, 4*1
-    jmp .isbreakcode
+  ;.pageup
+  ;  push 0
+  ;  call setscreen
+  ;  add esp, 4*1
+  ;  jmp .isbreakcode
 
-  .pagedown
-    push 2
-    call setscreen
-    add esp, 4*1
-    jmp .isbreakcode
+  ;.pagedown
+  ;  push 2
+  ;  call setscreen
+  ;  add esp, 4*1
+  ;  jmp .isbreakcode
     
-  .isbreakcode:
+   .isbreakcode:
     mov al, 0x20 ;clear buffer
     out 0x20, al
 
     popad
     pop ds
-    iretd
+    iretd;}
 
   ;push char12,pos8; call ~
   printkbchar:
