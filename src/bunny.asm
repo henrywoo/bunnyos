@@ -207,7 +207,7 @@ start_pmr0code:
   mc_out_byte(RATE_GENERATOR,TIMER_MODE)
   call io_delay
 
-  mc_out_byte(TIMER_FREQ/HZ,TIMER0)
+  mc_out_byte((TIMER_FREQ/HZ),TIMER0)
   call io_delay
 
   mc_out_byte(((TIMER_FREQ/HZ) >>8),TIMER0)
@@ -483,6 +483,7 @@ start_pmr0code:
 
     popad
     pop ds
+    jmp $
     iretd
 
   _HWHandler:

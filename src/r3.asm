@@ -151,7 +151,7 @@ r3text_len equ $-start_r3text
     push %2;len
     push %3;row
     push %4;column
-    call sel_r3text:printline ;*** far call
+    call sel_r3text:printline ; far call
     add esp, 16
 %endmacro
 
@@ -340,7 +340,7 @@ start_ldt4code:
   bunny_printf(ldt4dataaddr(p4data),p4data_len)
   ;r3print ldt4dataaddr(p4data),p4data_len,4,1
   call proc4
-  ;jmp $
+  jmp $
 
   proc4:
   .1:
@@ -351,11 +351,8 @@ start_ldt4code:
     add esp, 8
     ;bunny_printf(ldt4dataaddr(strx),8)
     r3print ldt4dataaddr(strx),8,3,(p4data_len+2)
-    Sleep 10000
+    Sleep 1000
     jmp .1
     ret
-  jmp $
-
-    
     
 ldt4code_len equ $-start_ldt4code

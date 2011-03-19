@@ -243,6 +243,22 @@ bunny_p %+ %1:
   mov byte [%1+7], ah
 %endmacro
 
+%macro mc_func_start 0
+    push  ebp
+    mov ebp, esp
+    push  ebx
+    push  esi
+    push  edi
+%endmacro
+
+%macro mc_func_end 0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    retf
+%endmacro
+
 %macro mc_shortfunc_start 0
     push  ebp
     mov ebp, esp
