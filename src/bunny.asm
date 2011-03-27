@@ -194,8 +194,6 @@ start_pmr0code:
   mov ax, sel_tss
   ltr ax
 
-  call Init8259A
-
   %define RATE_GENERATOR 34h ;/* 00-11-010-0 :
   %define TIMER_FREQ     1193182; /* clock frequency for timer in PC and AT */
   %define HZ             100
@@ -204,6 +202,7 @@ start_pmr0code:
   mc_out_byte((TIMER_FREQ/HZ),40h)
   mc_out_byte(((TIMER_FREQ/HZ) >>8),40h)
 
+  call Init8259A
   sti
 
   INITPBC 1
@@ -219,6 +218,9 @@ start_pmr0code:
   mov al, byte [0x475]; the number of harddisk
   cmp al, 0
   je .noharddisk
+  add al, 48 ; ord('0') = 48
+  mov ah, 0Fh
+  mov [fs:0], ax
   ; get BSY bit of status register
   mc_in_byte(1F7h)
   cmp al, 0

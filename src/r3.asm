@@ -130,12 +130,15 @@ start_r3text:
 
     int 90h
     mov edi, eax
+    mov ebx, dword [ebp+12]
   .2
     int 90h
     sub eax, edi
-    mov ecx, 1000/HZ
-    mul ecx
-    cmp eax, dword [ebp+12]
+    cmp eax, 0
+    jz .2
+    mov edx, (1000/HZ)
+    mul edx
+    cmp eax, ebx
     jl .2
 
     popad
@@ -183,14 +186,13 @@ sel_ldt1stack equ  ldt1_3-ldt1_1+111b
 
 ldt1_len equ $-start_ldt1
 
-; harddisk process
 ;*********************************************************************
 %define ldt1dataaddr(X) (X-start_ldt1data)
 [SECTION ldt1DATA]
 BITS 32
 ALIGN 32
 start_ldt1data:
-  mc_string p1data, {"hardisk process is running......................",0Ah}
+  mc_string p1data, {0ah,"p1 r3",0Ah}
   ;mc_string p1strfmt, "%s %d"
   ;mc_string p1name, {"Process 1", 0Ah," +printf", 0ah, 0Ah}
   ;mc_string p1name, {"simonwoo"}
@@ -301,10 +303,10 @@ start_ldt3code:
   ;call sel_r3text:num2str
   ;add esp, 8
   ;r3print ldt3dataaddr(pid3),8,3,(p3data_len+6)
-  .1:
-    inc byte [fs:((80 * 0 + 0) * 2)]
-    Sleep 100
-    jmp .1
+  ;.1:
+  ;  inc byte [fs:((80 * 0 + 0) * 2)]
+  ;  Sleep 1000
+  ;  jmp .1
   jmp $
 ldt3code_len equ $-start_ldt3code
 
