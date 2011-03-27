@@ -69,6 +69,7 @@ start_pmr0data:
   kbbuffer dd 0
   cursorpos dd 0
   curstartline dd 0
+  hdbuf: times ONEKB db 1
 pmr0data_len equ $ - start_pmr0data
 
 
@@ -77,7 +78,6 @@ pmr0data_len equ $ - start_pmr0data
 BITS 16
 start_real:
   mc_clearscreen
-  
 
   ; 0. calculate Protected mode segment descp
   mc_assign_descp_base GDT_3,start_pmr0code
@@ -128,16 +128,16 @@ start_real:
 [section GDT]
 BITS 32
 ALIGN 32
-GDT_1: mc_descp 0,0,0
-GDT_2: mc_descp 0B8000h, 32*1024-1, DA_DRW+DA_DPL3;***video
-GDT_3: mc_descp 0, (pmr0code_len-1), DA_CR+DA_32;***code
-GDT_4: mc_descp 0, (pmr0data_len-1), DA_DRWA+DA_32 ;***data
-GDT_5: mc_descp STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***stack
-GDT_6: mc_descp 0, (tss_len-1), DA_386TSS ;TSS
-GDT_7: mc_descp 0, ldt1_len-1, DA_LDT;+DA_DPL3; ldt1
-GDT_8: mc_descp 0, ldt2_len-1, DA_LDT;+DA_DPL3; ldt2
-GDT_9: mc_descp 0, ldt3_len-1, DA_LDT;+DA_DPL3; ldt3
-GDT_10: mc_descp 0, ldt4_len-1, DA_LDT;+DA_DPL3; ldt4;***simon
+GDT_1:      mc_descp 0,0,0
+GDT_2:      mc_descp 0B8000h, 32*1024-1, DA_DRW+DA_DPL3;***video
+GDT_3:      mc_descp 0, (pmr0code_len-1), DA_CR+DA_32;***code
+GDT_4:      mc_descp 0, (pmr0data_len-1), DA_DRWA+DA_32 ;***data
+GDT_5:      mc_descp STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***stack
+GDT_6:      mc_descp 0, (tss_len-1), DA_386TSS ;TSS
+GDT_7:      mc_descp 0, ldt1_len-1, DA_LDT;+DA_DPL3; ldt1
+GDT_8:      mc_descp 0, ldt2_len-1, DA_LDT;+DA_DPL3; ldt2
+GDT_9:      mc_descp 0, ldt3_len-1, DA_LDT;+DA_DPL3; ldt3
+GDT_10:     mc_descp 0, ldt4_len-1, DA_LDT;+DA_DPL3; ldt4;***simon
 GDT_r3text: mc_descp 0, r3text_len-1, DA_CR+DA_32+DA_DPL3;***ring 3 code/text/function/syscall
 GDT_r3data: mc_descp 0, r3data_len-1, DA_DRWA+DA_32+DA_DPL3;***ring 3 data
 
@@ -200,27 +200,43 @@ start_pmr0code:
   mov ax, sel_tss
   ltr ax
 
-  ;mov al, byte [0x475]; the number of harddisk
+  mov al, byte [0x475]; the number of harddisk
+  cmp al, 0
+  je .noharddisk
+
   call Init8259A
+
+  ; get BSY bit of status register
+  push 1f7h
+  call in_byte
+  cmp al, 0
+  jnz .HDBUSY
+  ;harddisk not busy
+  mc_out_byte(3F6h,0)
+  mc_out_byte(1F1h,0)
+  mc_out_byte(1F2h,0)
+  mc_out_byte(1F3h,0)
+  mc_out_byte(1F4h,0)
+  mc_out_byte(1F5h,0)
+  mc_out_byte(1F6h,MAKE_DEVICE_REG(0,0,0))
+  ;mc_out_byte(1F6h,0);***??
+  mc_out_byte(1F7h,0xEC)
+
+  push ONEKB/2
+  push hdbuf
+  push 1f0h
+  call port_read
+  add esp, 4*3
+ .HDBUSY
 
   ;*** set 10ms interrupt (8253 control register)
   mc_out_byte(RATE_GENERATOR,TIMER_MODE)
   call io_delay
-
   mc_out_byte((TIMER_FREQ/HZ),TIMER0)
   call io_delay
-
   mc_out_byte(((TIMER_FREQ/HZ) >>8),TIMER0)
   call io_delay
 
-  ;mov al, 34h
-  ;out 43h, al
-  ;nop
-  ;mov al, 9bh
-  ;out 40h, al
-  ;nop
-  ;mov al, 2eh
-  ;out 40h, al
 
   sti
 
@@ -235,17 +251,6 @@ start_pmr0code:
   mov dword[pid_1],sel_ldt1
   inc dword [pidcount]
 
-%macro INITPBC 1
-  mov dword[ds_ %+ %1],sel_ldt %+ %1 %+ data
-  mov dword[cs_ %+ %1 ],sel_ldt %+ %1 %+ code
-  mov dword[eflags_ %+ %1 ],d_eflags
-  mov dword[esp_ %+ %1 ],d_proc_stacksize
-  mov dword[ss_ %+ %1 ],sel_ldt %+ %1 %+ stack
-  mov word[sel_ldt %+ %1 %+ _],sel_ldt %+ %1 
-  mov eax, dword [pidcount]
-  mov dword[pid_ %+ %1],sel_ldt %+ %1
-  inc dword [pidcount]
-%endmacro
   INITPBC 2
   INITPBC 3
   INITPBC 4
@@ -260,7 +265,18 @@ start_pmr0code:
   push 0
   retf
 
+ .noharddisk
   jmp $
+
+  ;{void port_read(u16 port, void* buf, int n);
+  port_read:
+    mov edx, [esp + 4]    ; port
+    mov edi, [esp + 4 + 4]  ; buf
+    mov ecx, [esp + 4 + 4 + 4]  ; n
+    shr ecx, 1
+    cld
+    rep insw
+    ret;}
 
   ;{push line_number
   setscreen:
@@ -483,7 +499,6 @@ start_pmr0code:
 
     popad
     pop ds
-    jmp $
     iretd
 
   _HWHandler:
@@ -709,7 +724,7 @@ start_pmr0code:
     mov al, 11111000b ;keyboard and timer and cascade
     out 021h, al  ;master 8259, OCW1.
     call  io_delay
-    mov al, 10101111b ;slave
+    mov al, 10111111b ;slave
     out 0A1h, al  ;slave 8259, OCW1.
     call  io_delay
     ret
@@ -727,24 +742,21 @@ start_pmr0code:
     pop ebp
     ret 8
 
+  ;{ push XX; call ~
   in_byte:
-    mov ebp,esp
-    pushad
-    mov edx, [ebp + 4]    ; port
+    ;mov ebp,esp
+    ;pushad
+    mov edx, [esp+4];port
     xor eax, eax
     in  al, dx
     call io_delay
-    popad
-    ret 4
+    ;popad
+    ret 4;}
 
   ; push 16msg, 12msg_len, 8pos; call printline
   _r0printline:
   r0printline equ _r0printline-$$
-    push  ebp
-    mov ebp, esp
-    push  edi
-    pushad
-  
+    mc_shortfunc_start
     mov ecx, [ebp+12];len
     mov edi, [ebp+8];pos
     mov ebx,0
@@ -757,21 +769,12 @@ start_pmr0code:
     inc ebx
     add edi, 2
     LOOP .1
-
-    popad
-    pop edi
-    pop ebp
-    ret
+    mc_shortfunc_end
 
   ;*** push 20014a7fh, addr; call num2str
   _r0num2str:
   r0num2str equ _r0num2str-$$
-    push  ebp
-    mov ebp, esp
-    push  esi
-    push  edi
-    pushad
-
+    mc_shortfunc_start
     mov edi, dword [ebp+8];address
     add edi, 8
     mov eax, dword [ebp+12];num
@@ -791,12 +794,7 @@ start_pmr0code:
     mov byte [edi], bl 
     shr eax, 4
     loop .1
-
-    popad
-    pop edi
-    pop esi
-    pop ebp
-    ret 8
+    mc_shortfunc_end
 
   ;***** System Call ******
   ;************************

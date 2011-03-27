@@ -276,7 +276,20 @@ bunny_p %+ %1:
   push %2
   call out_byte
 %endmacro
-
 %define mc_out_byte(X,Y) _mc_out_byte X,Y
+
+%macro INITPBC 1
+  mov dword[ds_ %+ %1],sel_ldt %+ %1 %+ data
+  mov dword[cs_ %+ %1 ],sel_ldt %+ %1 %+ code
+  mov dword[eflags_ %+ %1 ],d_eflags
+  mov dword[esp_ %+ %1 ],d_proc_stacksize
+  mov dword[ss_ %+ %1 ],sel_ldt %+ %1 %+ stack
+  mov word[sel_ldt %+ %1 %+ _],sel_ldt %+ %1 
+  mov eax, dword [pidcount]
+  mov dword[pid_ %+ %1],sel_ldt %+ %1
+  inc dword [pidcount]
+%endmacro
+
+%define MAKE_DEVICE_REG(lba,drv,lba_highest) (((lba) << 6)|((drv) << 4)|(lba_highest & 0xF)|0xA0)
 
 %endif
