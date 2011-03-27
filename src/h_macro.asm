@@ -271,12 +271,19 @@ bunny_p %+ %1:
     ret
 %endmacro
 
+;{push value;push port; call ~
 %macro _mc_out_byte 2
   push %1
   push %2
   call out_byte
-%endmacro
+%endmacro;}
 %define mc_out_byte(X,Y) _mc_out_byte X,Y
+
+%macro _mc_in_byte 1
+  push %1
+  call in_byte
+%endmacro
+%define mc_in_byte(X) _mc_in_byte X
 
 %macro INITPBC 1
   mov dword[ds_ %+ %1],sel_ldt %+ %1 %+ data
@@ -290,6 +297,7 @@ bunny_p %+ %1:
   inc dword [pidcount]
 %endmacro
 
-%define MAKE_DEVICE_REG(lba,drv,lba_highest) (((lba) << 6)|((drv) << 4)|(lba_highest & 0xF)|0xA0)
+%define MAKE_DEVICE_REG(lba,drv,lba_highest)\
+  (((lba) << 6)|((drv) << 4)|(lba_highest & 0xF)|0xA0)
 
 %endif

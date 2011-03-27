@@ -173,13 +173,13 @@ r3text_len equ $-start_r3text
 BITS 32
 ALIGN 32
 start_ldt1:
-ldt1_1: mc_descp 0, (ldt1code_len-1),  DA_CR+DA_32+DA_DPL3;***code
-ldt1_2: mc_descp 0, (ldt1data_len-1),  DA_DRWA+DA_32+DA_DPL3;***data
+ldt1_1: mc_descp       0, (ldt1code_len-1), DA_CR  +DA_32+DA_DPL3;***code
+ldt1_2: mc_descp       0, (ldt1data_len-1), DA_DRWA+DA_32+DA_DPL3;***data
 ldt1_3: mc_descp 200000h, d_proc_stacksize, DA_DRWA+DA_32+DA_DPL3;***stack
 
-sel_ldt1code equ  111b
-sel_ldt1data equ  ldt1_2-ldt1_1+111b
-sel_ldt1stack equ ldt1_3-ldt1_1+111b
+sel_ldt1code  equ              0+111b
+sel_ldt1data  equ  ldt1_2-ldt1_1+111b
+sel_ldt1stack equ  ldt1_3-ldt1_1+111b
 
 ldt1_len equ $-start_ldt1
 
@@ -190,10 +190,11 @@ ldt1_len equ $-start_ldt1
 BITS 32
 ALIGN 32
 start_ldt1data:
-  mc_string p1data, {"hardisk process is running",0Ah}
+  mc_string p1data, {"hardisk process is running......................",0Ah}
   ;mc_string p1strfmt, "%s %d"
   ;mc_string p1name, {"Process 1", 0Ah," +printf", 0ah, 0Ah}
   ;mc_string p1name, {"simonwoo"}
+  hdinfo: times ONEKB db 0
 ldt1data_len equ $-start_ldt1data
 
 ;*********************************************************************
@@ -300,10 +301,10 @@ start_ldt3code:
   ;call sel_r3text:num2str
   ;add esp, 8
   ;r3print ldt3dataaddr(pid3),8,3,(p3data_len+6)
-  ;.1:
-  ;  inc byte [fs:((80 * 3 + p3data_len) * 2)]
-  ;  Sleep 100
-  ;  jmp .1
+  .1:
+    inc byte [fs:((80 * 0 + 0) * 2)]
+    Sleep 100
+    jmp .1
   jmp $
 ldt3code_len equ $-start_ldt3code
 
@@ -328,7 +329,7 @@ ldt4_len equ $-start_ldt4
 BITS 32
 ALIGN 32
 start_ldt4data:
-  mc_string p4data, "I am proc 4 in ring 3 - jiffies -"
+  mc_string p4data, {"I am proc 4 in ring 3 - jiffies -",0ah}
   strx: times 8 db 0
 ldt4data_len equ $-start_ldt4data
 

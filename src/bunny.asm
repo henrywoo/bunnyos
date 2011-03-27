@@ -30,11 +30,6 @@ pos equ 1 ;pos equ (80-bmsg1_len)/2
 d_eflags equ 1202h
 d_proc_stacksize equ 64*1024-1
 
-%define TIMER_MODE     43h ;/* I/O port for timer mode control */
-%define RATE_GENERATOR 34h ;/* 00-11-010-0 :
-%define TIMER0         40h ;/* I/O port for timer channel 0 */
-%define TIMER_FREQ     1193180; /* clock frequency for timer in PC and AT */
-%define HZ             (100)
 
 ;*********************************************************************
 [SECTION PMR0DATA]
@@ -69,7 +64,7 @@ start_pmr0data:
   kbbuffer dd 0
   cursorpos dd 0
   curstartline dd 0
-  hdbuf: times ONEKB db 1
+  hdbuf: times ONEKB db 0
 pmr0data_len equ $ - start_pmr0data
 
 
@@ -145,18 +140,17 @@ gdt_len equ $-GDT_1
 gdtptr  dw (gdt_len - 1)
         dd (GDT_1)
 
-sel_video     equ GDT_2-GDT_1+011b
-sel_pmr0code  equ GDT_3-GDT_1
-sel_pmr0data  equ GDT_4-GDT_1
-sel_pmr0stack equ GDT_5-GDT_1
-sel_tss       equ GDT_6-GDT_1
-sel_ldt1      equ GDT_7-GDT_1+011b
-sel_ldt2      equ GDT_8-GDT_1+011b
-sel_ldt3      equ GDT_9-GDT_1+011b
-sel_ldt4      equ GDT_10-GDT_1+011b;***simon
-
-sel_r3text    equ GDT_r3text-GDT_1+011b
-sel_r3data    equ GDT_r3data-GDT_1+011b
+sel_video     equ GDT_2      -GDT_1 +011b
+sel_pmr0code  equ GDT_3      -GDT_1
+sel_pmr0data  equ GDT_4      -GDT_1
+sel_pmr0stack equ GDT_5      -GDT_1
+sel_tss       equ GDT_6      -GDT_1
+sel_ldt1      equ GDT_7      -GDT_1 +011b
+sel_ldt2      equ GDT_8      -GDT_1 +011b
+sel_ldt3      equ GDT_9      -GDT_1 +011b
+sel_ldt4      equ GDT_10     -GDT_1 +011b ;***simon
+sel_r3text    equ GDT_r3text -GDT_1 +011b
+sel_r3data    equ GDT_r3data -GDT_1 +011b
 
 ;********************************************************
 [section IDT]
@@ -200,57 +194,19 @@ start_pmr0code:
   mov ax, sel_tss
   ltr ax
 
-  mov al, byte [0x475]; the number of harddisk
-  cmp al, 0
-  je .noharddisk
-
   call Init8259A
 
-  ; get BSY bit of status register
-  push 1f7h
-  call in_byte
-  cmp al, 0
-  jnz .HDBUSY
-  ;harddisk not busy
-  mc_out_byte(3F6h,0)
-  mc_out_byte(1F1h,0)
-  mc_out_byte(1F2h,0)
-  mc_out_byte(1F3h,0)
-  mc_out_byte(1F4h,0)
-  mc_out_byte(1F5h,0)
-  mc_out_byte(1F6h,MAKE_DEVICE_REG(0,0,0))
-  ;mc_out_byte(1F6h,0);***??
-  mc_out_byte(1F7h,0xEC)
-
-  push ONEKB/2
-  push hdbuf
-  push 1f0h
-  call port_read
-  add esp, 4*3
- .HDBUSY
-
-  ;*** set 10ms interrupt (8253 control register)
-  mc_out_byte(RATE_GENERATOR,TIMER_MODE)
-  call io_delay
-  mc_out_byte((TIMER_FREQ/HZ),TIMER0)
-  call io_delay
-  mc_out_byte(((TIMER_FREQ/HZ) >>8),TIMER0)
-  call io_delay
-
+  %define RATE_GENERATOR 34h ;/* 00-11-010-0 :
+  %define TIMER_FREQ     1193180; /* clock frequency for timer in PC and AT */
+  %define HZ             100
+  ;set 10ms interrupt (8253 control register)
+  mc_out_byte(RATE_GENERATOR,43h)
+  mc_out_byte((TIMER_FREQ/HZ),40h)
+  mc_out_byte(((TIMER_FREQ/HZ) >>8),40h)
 
   sti
 
-  ;***init PCB1 simon
-  mov dword[ds_1],sel_ldt1data
-  mov dword[cs_1],sel_ldt1code
-  mov dword[eflags_1],d_eflags
-  mov dword[esp_1],d_proc_stacksize
-  mov dword[ss_1],sel_ldt1stack
-  mov word[sel_ldt1_],sel_ldt1
-  mov eax, dword [pidcount]
-  mov dword[pid_1],sel_ldt1
-  inc dword [pidcount]
-
+  INITPBC 1
   INITPBC 2
   INITPBC 3
   INITPBC 4
@@ -259,24 +215,51 @@ start_pmr0code:
   mov ax, sel_ldt1
   lldt ax
 
+  ;{ read harddisk parameters
+  mov al, byte [0x475]; the number of harddisk
+  cmp al, 0
+  je .noharddisk
+  ; get BSY bit of status register
+  mc_in_byte(1F7h)
+  cmp al, 0
+  jnz .HDBUSY
+  ;harddisk not busy
+  mc_out_byte(0,3F6h)
+  mc_out_byte(0,1F1h)
+  mc_out_byte(0,1F2h)
+  mc_out_byte(0,1F3h)
+  mc_out_byte(0,1F4h)
+  mc_out_byte(0,1F5h)
+  mc_out_byte((MAKE_DEVICE_REG(0,0,0)),1F6h)
+  mc_out_byte(0xEC,1F7h)
+  push ONEKB
+  push hdbuf
+  push 1f0h
+  call port_read
+  add esp, 4*3
+ .HDBUSY
+ .noharddisk;}
+
   push sel_ldt1stack
   push d_proc_stacksize
   push sel_ldt1code
   push 0
   retf
 
- .noharddisk
   jmp $
 
   ;{void port_read(u16 port, void* buf, int n);
   port_read:
-    mov edx, [esp + 4]    ; port
-    mov edi, [esp + 4 + 4]  ; buf
-    mov ecx, [esp + 4 + 4 + 4]  ; n
+    mc_shortfunc_start
+    pushf
+    mov edx, [ebp + 8]    ; port
+    mov edi, [ebp + 8 + 4]  ; buf
+    mov ecx, [ebp + 8 + 4 + 4]  ; n
     shr ecx, 1
     cld
     rep insw
-    ret;}
+    popf
+    mc_shortfunc_end;}
 
   ;{push line_number
   setscreen:
@@ -699,7 +682,7 @@ start_pmr0code:
 
   ;*** Init8259A ------------------------------------
   Init8259A:
-    mov al, 011h
+    mov al, 011h; 00010001b
     out 020h, al  ; 主8259, ICW1.
     call  io_delay
     out 0A0h, al  ; 从8259, ICW1.
@@ -729,18 +712,16 @@ start_pmr0code:
     call  io_delay
     ret
 
-  ;*** push value(8), port(4); call out_byte
+  ;{ push value(12), port(8); call out_byte
   out_byte:
     push ebp
     mov ebp,esp
-    pushad
-    mov dx, word [ebp + 8]    ; port
-    mov al, byte [ebp + 12] ; value - get lowest 8 bits
+    mov edx, [ebp + 8]  ; port
+    mov eax, [ebp + 12] ; value - get lowest 8 bits
     out dx, al
-    call io_delay
-    popad
+    nop
     pop ebp
-    ret 8
+    ret 8;}
 
   ;{ push XX; call ~
   in_byte:
