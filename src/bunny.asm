@@ -197,7 +197,7 @@ start_pmr0code:
   call Init8259A
 
   %define RATE_GENERATOR 34h ;/* 00-11-010-0 :
-  %define TIMER_FREQ     1193180; /* clock frequency for timer in PC and AT */
+  %define TIMER_FREQ     1193182; /* clock frequency for timer in PC and AT */
   %define HZ             100
   ;set 10ms interrupt (8253 control register)
   mc_out_byte(RATE_GENERATOR,43h)
