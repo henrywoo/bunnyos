@@ -34,6 +34,15 @@ start_r3text:
   _syscall_get_jiffies equ 0
   iv_get_jiffies equ 90h
 
+  ;{push p_msg(12),src_dest(8),function(4)
+  sendrec:
+    mov eax, _NR_SENDREC
+    mov ebx, [esp+4 ]
+    mov ecx, [esp+8 ]
+    mov edx, [esp+12]
+    int INT_SYS_CALL
+    ret;}
+    
   _get_jiffies:
   get_jiffies equ _get_jiffies-$$
     ;mov eax, _syscall_get_jiffies

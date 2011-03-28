@@ -780,7 +780,6 @@ start_pmr0code:
     mc_shortfunc_end
 
   ;***** System Call ******
-  ;************************
   _JiffiesHandler:
   JiffiesHandler equ _JiffiesHandler - $$
     push  ds 
@@ -795,5 +794,23 @@ start_pmr0code:
     mov eax, 0
     iretd
   
+  ;********** IPC **************
+  ;int sys_sendrec(int function, int src_dest, MESSAGE* m, struct proc* p)
+  sys_sendrec:
+    nop
+    ret
+  ;void block(struct proc* p);
+  ;void unblock(struct proc* p);
+  ;int  deadlock(int src, int dest);
+
+  ;int  msg_send(struct proc* current, int dest, MESSAGE* m);
+  msg_send:
+    nop
+    ret
+
+  ;int  msg_receive(struct proc* current, int src, MESSAGE* m);
+  msg_receive:
+    nop
+    ret
 pmr0code_len equ $-start_pmr0code
 %include "r3.asm"
