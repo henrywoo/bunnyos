@@ -797,20 +797,48 @@ start_pmr0code:
   ;********** IPC **************
   ;int sys_sendrec(int function, int src_dest, MESSAGE* m, struct proc* p)
   sys_sendrec:
+    mc_shortfunc_start
+    mov eax, [ebp+8+0 ]
+    mov ebx, [ebp+8+4 ]
+    mov ecx, [ebp+8+8 ]
+    mov edx, [ebp+8+12]
     nop
-    ret
-  ;void block(struct proc* p);
-  ;void unblock(struct proc* p);
-  ;int  deadlock(int src, int dest);
+    mc_shortfunc_end
 
   ;int  msg_send(struct proc* current, int dest, MESSAGE* m);
   msg_send:
-    nop
-    ret
+    mc_shortfunc_start
+    mov eax, [ebp+8+0]
+    mov ebx, [ebp+8+4]
+    mov ecx, [ebp+8+8]
+    mc_shortfunc_end
 
   ;int  msg_receive(struct proc* current, int src, MESSAGE* m);
   msg_receive:
-    nop
-    ret
+    mc_shortfunc_start
+    mov eax, [ebp+8+0]
+    mov ebx, [ebp+8+4]
+    mov ecx, [ebp+8+8]
+    mc_shortfunc_end
+
+  ;int  deadlock(int src, int dest);
+  deadlock:
+    mc_shortfunc_start
+    mov eax, [ebp+8+0]
+    mov ebx, [ebp+8+4]
+    mc_shortfunc_end
+
+  ;void block(struct proc* p);
+  block:
+    mc_shortfunc_start
+    mov eax, [ebp+8+0]
+    mc_shortfunc_end
+
+  ;void unblock(struct proc* p);
+  unblock:
+    mc_shortfunc_start
+    mov eax, [ebp+8+0]
+    mc_shortfunc_end
+
 pmr0code_len equ $-start_pmr0code
 %include "r3.asm"
