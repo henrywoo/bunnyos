@@ -469,6 +469,10 @@ start_pmr0code:
     sub esp, 4
     ret
  
+  _IPCHandler:
+  IPCHandler equ _IPCHandler - $$
+    iretd
+
   _SpuriousHandler:
   SpuriousHandler equ _SpuriousHandler - $$
     push  ds 
@@ -808,9 +812,9 @@ start_pmr0code:
   ;int  msg_send(struct proc* current, int dest, MESSAGE* m);
   msg_send:
     mc_shortfunc_start
-    mov eax, [ebp+8+0]
-    mov ebx, [ebp+8+4]
-    mov ecx, [ebp+8+8]
+    mov eax, [ebp+8+0];m
+    mov ebx, [ebp+8+4];dest
+    mov ecx, [ebp+8+8];current
     mc_shortfunc_end
 
   ;int  msg_receive(struct proc* current, int src, MESSAGE* m);
@@ -824,8 +828,9 @@ start_pmr0code:
   ;int  deadlock(int src, int dest);
   deadlock:
     mc_shortfunc_start
-    mov eax, [ebp+8+0]
-    mov ebx, [ebp+8+4]
+    mov eax, [ebp+8+0];dest
+    mov ebx, [ebp+8+4];src
+    
     mc_shortfunc_end
 
   ;void block(struct proc* p);

@@ -17,6 +17,37 @@
 ; Free Software Foundation,  51 Franklin Street, Fifth Floor, Boston, MA
 ; 02110-1301, USA.
 
+%macro r3print 4
+    push %1;msg
+    push %2;len
+    push %3;row
+    push %4;column
+    call sel_r3text:printline ; far call
+    add esp, 16
+%endmacro
+
+%macro Sleep 1
+    push %1
+    call sel_r3text:sleep_ms
+    add esp, 4
+%endmacro
+
+%macro _printf_ 2
+  push %1;msg
+  push %2;len
+  call sel_r3text:printf
+  add esp, 4*2
+%endmacro
+%define bunny_printf(msg_,len_) _printf_ msg_,len_
+
+%macro _sendrec_ 3
+  push %1;func
+  push %2;src_dest
+  push %3;p_msg
+  call sel_r3text:sendrec
+  add esp, 4*3
+%endmacro
+%define bunny_sendrec(func_,src_dest_,msg_) _sendrec_ func_,src_dest_,msg_
 ;*********************************************************************
 [SECTION r3data]
 BITS 32
@@ -34,14 +65,18 @@ start_r3text:
   _syscall_get_jiffies equ 0
   iv_get_jiffies equ 90h
 
-  ;{push p_msg(12),src_dest(8),function(4)
-  sendrec:
+  ;{push func(20),src_dest(16),msg(12)
+  _sendrec:
+  sendrec equ _sendrec-$$
+    push  ebp
+    mov ebp, esp
     mov eax, _NR_SENDREC
-    mov ebx, [esp+4 ]
-    mov ecx, [esp+8 ]
-    mov edx, [esp+12]
+    mov ebx, [ebp+12+0];msg
+    mov ecx, [ebp+12+4];src_dest
+    mov edx, [ebp+12+8];func
+    pop ebp
     int INT_SYS_CALL
-    ret;}
+    retf;}
     
   _get_jiffies:
   get_jiffies equ _get_jiffies-$$
@@ -57,10 +92,6 @@ start_r3text:
   ;printf(const char*fmt,...);
   _printf:
   printf equ _printf-$$ ; push str16,str_len12
-    ;mc_func_start
-    ;sub esp, ONEKB
-    ;add esp, ONEKB
-    ;mc_func_end
     push  ebp
     mov ebp, esp
     mov ecx,[ebp+12]
@@ -136,7 +167,6 @@ start_r3text:
     push  esi
     push  edi
     pushad
-
     int 90h
     mov edi, eax
     mov ebx, dword [ebp+12]
@@ -149,37 +179,39 @@ start_r3text:
     mul edx
     cmp eax, ebx
     jl .2
-
     popad
     pop edi
     pop esi
     pop ebp
     retf
     
+  ;{ void memset(void* p_dst, char ch, int size);
+  memset:
+    push  ebp
+    mov ebp, esp
+    push  esi
+    push  edi
+    push  ecx
+    mov edi, [ebp + 8]  ; Destination
+    mov edx, [ebp + 12] ; Char to be putted
+    mov ecx, [ebp + 16] ; Counter
+  .1:
+    cmp ecx, 0    ; 判断计数器
+    jz  .2    ; 计数器为零时跳出
+    mov byte [edi], dl    ; ┓
+    inc edi     ; ┛
+    dec ecx   ; 计数器减一
+    jmp .1    ; 循环
+  .2:
+    pop ecx
+    pop edi
+    pop esi
+    mov esp, ebp
+    pop ebp
+    ret;}
+
 r3text_len equ $-start_r3text
 
-%macro r3print 4
-    push %1;msg
-    push %2;len
-    push %3;row
-    push %4;column
-    call sel_r3text:printline ; far call
-    add esp, 16
-%endmacro
-
-%macro Sleep 1
-    push %1
-    call sel_r3text:sleep_ms
-    add esp, 4
-%endmacro
-
-%macro _printf_ 2
-  push %1;msg
-  push %2;len
-  call sel_r3text:printf
-  add esp, 4*2
-%endmacro
-%define bunny_printf(msg_,len_) _printf_ msg_,len_
 ;*********************************************************************
 [SECTION ldt1]
 BITS 32
@@ -206,6 +238,10 @@ start_ldt1data:
   ;mc_string p1name, {"Process 1", 0Ah," +printf", 0ah, 0Ah}
   ;mc_string p1name, {"simonwoo"}
   hdinfo: times ONEKB db 0
+  msg1:
+    msg_src   db 0
+    msg_typ   db 0
+    msg_pbody db 0
 ldt1data_len equ $-start_ldt1data
 
 ;*********************************************************************
@@ -215,6 +251,9 @@ ALIGN 32
 start_ldt1code:
   mov ax, sel_ldt1data
   mov ds, ax
+  pushad
+  bunny_sendrec(BOTH,TASK_SYS,ldt1dataaddr(msg1))
+  popad
   bunny_printf(ldt1dataaddr(p1data),p1data_len)
   ;push ldt1dataaddr(p1name)
   ;push p1name_len

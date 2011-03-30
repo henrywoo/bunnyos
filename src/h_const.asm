@@ -199,6 +199,19 @@ PMR0STACK_LEN           equ (7c00h-500h-1)
 %define RECEIVE         2
 %define BOTH            3 ; BOTH = (SEND | RECEIVE) 
 
-   
+%define SENDING         0x02  ;/* set when proc trying to send */
+%define RECEIVING       0x04  ;/* set when proc trying to recv */
+
+;* when hard interrupt occurs, a msg (with type==HARD_INT) will
+;* be sent to some tasks
+%define HARD_INT        1
+%define GET_TICKS       2 ;   /* SYS task */
+%define DEV_OPEN        1001,
+%define DEV_CLOSE       1002
+%define DEV_READ        1003
+%define DEV_WRITE       1004
+%define DEV_IOCTL       1005   /* message type for drivers */
+
+%define TASK_SYS        1
 %endif
    

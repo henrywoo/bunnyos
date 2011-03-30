@@ -183,28 +183,36 @@
 ;{ struct for Process Control Table(PCB)
 %macro mc_pcb_table 1
 bunny_p %+ %1:
-   gs_ %+ %1    dd 0
-   fs_ %+ %1    dd sel_video;***0
-   es_ %+ %1    dd 0
-   ds_ %+ %1    dd 0
-   edi_ %+ %1   dd 0
-   esi_ %+ %1   dd 0
-   ebp_ %+ %1   dd 0
-   k_esp_ %+ %1 dd 0
-   ebx_ %+ %1   dd 0
-   edx_ %+ %1   dd 0
-   ecx_ %+ %1   dd 0
-   eax_ %+ %1   dd 0
-   ;etaddr_ %+ %1 dd 13
-   eip_ %+ %1     dd 0
-   cs_ %+ %1      dd 0
-   eflags_ %+ %1  dd 0
-   esp_ %+ %1     dd 0
-   ss_ %+ %1      dd 0
+   gs_       %+ %1    dd 0
+   fs_       %+ %1    dd sel_video;***0
+   es_       %+ %1    dd 0
+   ds_       %+ %1    dd 0
+   edi_      %+ %1    dd 0
+   esi_      %+ %1    dd 0
+   ebp_      %+ %1    dd 0
+   k_esp_    %+ %1    dd 0
+   ebx_      %+ %1    dd 0
+   edx_      %+ %1    dd 0
+   ecx_      %+ %1    dd 0
+   eax_      %+ %1    dd 0 ;etaddr_ %+ %1 dd 13
+   eip_      %+ %1    dd 0
+   cs_       %+ %1    dd 0
+   eflags_   %+ %1    dd 0
+   esp_      %+ %1    dd 0
+   ss_       %+ %1    dd 0
 
-   sel_ldt %+ %1 %+ _  dw 0
-   pid_ %+ %1      dd 0
-   pname_ %+ %1 times 16 db 0
+   sel_ldt   %+ %1 %+ _  dw 0
+   pid_      %+ %1       dd 0
+   priority_ %+ %1       dd 0
+   pflags_   %+ %1       dd 0
+   pmsg_     %+ %1       dd 0
+   precfrom_ %+ %1       dd 0
+   psendto_  %+ %1       dd 0
+   intmsg_   %+ %1       dd 0
+   p_q_send_ %+ %1       dd 0
+   p_q_next_ %+ %1       dd 0
+   tty_      %+ %1       dd 0
+   pname_    %+ %1 times 16 db 0
 %endmacro;}
 
 
