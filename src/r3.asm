@@ -74,8 +74,31 @@ start_r3text:
     mov ebx, [ebp+12+0];msg
     mov ecx, [ebp+12+4];src_dest
     mov edx, [ebp+12+8];func
-    pop ebp
+    cmp edx, RECEIVE
+    jnz .1
+    mov dword [ebx  ],0
+    mov dword [ebx+4],0
+    mov dword [ebx+8],0
+
+   .1:
+    cmp edx, BOTH
+    jnz .notboth
+
+   .both:
+    mov edx, SEND
     int INT_SYS_CALL
+    cmp eax, 0
+    jnz .done
+
+   .receive:
+    mov eax, _NR_SENDREC
+    mov edx, RECEIVE
+
+   .notboth:
+    int INT_SYS_CALL; return value stored at eax
+
+   .done
+    pop ebp
     retf;}
     
   _get_jiffies:
@@ -239,9 +262,9 @@ start_ldt1data:
   ;mc_string p1name, {"simonwoo"}
   hdinfo: times ONEKB db 0
   msg1:
-    msg_src   db 0
-    msg_typ   db 0
-    msg_pbody db 0
+    msg_src   dd 0
+    msg_typ   dd 0
+    msg_pbody dd 0
 ldt1data_len equ $-start_ldt1data
 
 ;*********************************************************************
@@ -251,9 +274,7 @@ ALIGN 32
 start_ldt1code:
   mov ax, sel_ldt1data
   mov ds, ax
-  pushad
   bunny_sendrec(BOTH,TASK_SYS,ldt1dataaddr(msg1))
-  popad
   bunny_printf(ldt1dataaddr(p1data),p1data_len)
   ;push ldt1dataaddr(p1name)
   ;push p1name_len
