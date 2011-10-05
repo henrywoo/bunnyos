@@ -1,21 +1,19 @@
-; BunnyOS 1.0
+
+;                    The BunnyOS
+;  Copyright (C) 2011 WuFuheng@gmail.com, Singapore
 ;
-; Copyright (C) 2011 Wu Fuheng.
+;  This program is free software: you can redistribute it and/or modify
+;  it under the terms of the GNU General Public License as published by
+;  the Free Software Foundation, either version 3 of the License, or
+;  (at your option) any later version.
 ;
-; BunnyOS is free software;  you can  redistribute it and/or modify it under
-; the terms of the GNU LESSER GENERAL PUBLIC LICENSE as published by the
-; Free Software Foundation; either version 2.1, or (at your option)  any
-; later version.
-; 
-; BunnyOS is distributed in the hope that it will be useful, but WITHOUT ANY
-; WARRANTY; without  even  the  implied  warranty  of MERCHANTABILITY or
-; FITNESS FOR A PARTICULAR PURPOSE.  See the  GNU General Public License
-; for more details.
-; 
-; You  should  have  received  a  copy of the GNU General Public License
-; along  with  BunnyOS;  see the  file COPYING.  If not, please write to the
-; Free Software Foundation,  51 Franklin Street, Fifth Floor, Boston, MA
-; 02110-1301, USA.
+;  This program is distributed in the hope that it will be useful,
+;  but WITHOUT ANY WARRANTY; without even the implied warranty of
+;  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;  GNU General Public License for more details.
+;
+;  You should have received a copy of the GNU General Public License
+;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 %include "h_macro.asm"
 %include "h_const.asm"
@@ -24,9 +22,8 @@ org KERNELADDRABS
 jmp start_real
 
 %define r0addr(X) (X-start_pmr0data)
-pos equ 1 ;pos equ (80-bmsg1_len)/2
 
-;*** default value setting ***
+;*** default value setting;**
 d_eflags equ 1202h
 d_proc_stacksize equ 64*1024-1
 
@@ -38,7 +35,6 @@ ALIGN 32
 start_pmr0data:
  PCBSTART:
   mc_pcb_table 1
-  PCB_len equ $ - PCBSTART
   mc_pcb_table 2
   mc_pcb_table 3
  PCBLAST:
@@ -47,7 +43,7 @@ start_pmr0data:
   curPCB    dd 0
   reenter   dd -1
   jiffies   dd 0
-  
+
   pidcount  dd 0
 
   mc_string bmsg1, "BunnyOS 1.0"
@@ -65,6 +61,15 @@ start_pmr0data:
   cursorpos dd 0
   curstartline dd 0
   hdbuf: times ONEKB db 0
+
+ SYS_CALL_TABLE:
+  dd SpuriousHandler
+  dd Sys_sendrec
+  dd ClockHandler
+  dd HWHandler
+  dd KeyboardHandler
+  dd PrintfHandler
+
 pmr0data_len equ $ - start_pmr0data
 
 
@@ -125,10 +130,10 @@ BITS 32
 ALIGN 32
 GDT_1:      mc_descp 0,0,0
 GDT_2:      mc_descp 0B8000h, 32*1024-1, DA_DRW+DA_DPL3;***video
-GDT_3:      mc_descp 0, (pmr0code_len-1), DA_CR+DA_32;***code
-GDT_4:      mc_descp 0, (pmr0data_len-1), DA_DRWA+DA_32 ;***data
+GDT_3:      mc_descp 0, pmr0code_len-1, DA_CR+DA_32;***code
+GDT_4:      mc_descp 0, pmr0data_len-1, DA_DRWA+DA_32 ;***data
 GDT_5:      mc_descp STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***stack
-GDT_6:      mc_descp 0, (tss_len-1), DA_386TSS ;TSS
+GDT_6:      mc_descp 0, tss_len-1 , DA_386TSS ;TSS
 GDT_7:      mc_descp 0, ldt1_len-1, DA_LDT;+DA_DPL3; ldt1
 GDT_8:      mc_descp 0, ldt2_len-1, DA_LDT;+DA_DPL3; ldt2
 GDT_9:      mc_descp 0, ldt3_len-1, DA_LDT;+DA_DPL3; ldt3
@@ -195,7 +200,7 @@ start_pmr0code:
   ltr ax
 
   %define RATE_GENERATOR 34h ;/* 00-11-010-0 :
-  %define TIMER_FREQ     1193182; /* clock frequency for timer in PC and AT */
+  %define TIMER_FREQ     1193182; /* clock frequency for timer in PC and AT;/
   %define HZ             100
   ;set 10ms interrupt (8253 control register)
   mc_out_byte(RATE_GENERATOR,43h)
@@ -247,8 +252,70 @@ start_pmr0code:
   push sel_ldt1code
   push 0
   retf
+  mov eax, 0x1234
 
   jmp $
+
+  _SysHandler:
+  SysHandler equ _SysHandler - $$
+    pushad
+    push ds
+    push es
+    push fs
+    push gs
+    
+    push ds
+    mov si, sel_pmr0data
+    mov ds, si
+    mov esi, dword[r0addr(curPCB)]; get pid from curPCB
+    mov edi, esi
+    add esi, (pid_1-bunny_p1)
+    mov edi, dword[esi] ; pid
+    pop ds
+
+    ;ebx - msg, ecx - src_dest, edx - func
+    mov dword[ebx], edi; m->source = caller
+    cmp edx, SEND
+    jnz .1
+    ;ret  = msg_send(p,src_dest,m)
+    push ebx
+    push ecx
+    push edi
+    call msg_send
+    add esp, 4*3
+    jmp .done
+   .1:
+    cmp edx, RECEIVE
+    jnz .2
+    push ebx
+    push ecx
+    call msg_receive
+    add esp, 4*2
+    ;ret  = msg_receive(p,src_dest,m)
+    jmp .done
+   .2:
+    hlt
+    ;
+    ;call save
+    ;call eax*4+SYS_CALL_TABLE
+    ;xor edx, edx
+    ;mov edi, 4
+    ;mul edi
+    ;add eax, dword[SYS_CALL_TABLE]
+    ;call eax
+   .done:
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popad
+    iretd
+
+  ;{ core rutine of system call
+  ;int sys_sendrec(int function, int src_dest, MESSAGE* m, struct proc* p)
+  Sys_sendrec:
+    mc_shortfunc_start
+    mc_shortfunc_end;}
 
   ;{void port_read(u16 port, void* buf, int n);
   port_read:
@@ -398,7 +465,7 @@ start_pmr0code:
     ret
 
 
-  ;*** R0_Function ***
+  ;*** R0_Function;**
   _ClockHandler:
   ClockHandler equ _ClockHandler - $$
     pushad  
@@ -433,7 +500,7 @@ start_pmr0code:
     mov edx, r0addr(PCBSTART)
     mov esp, edx
   .4:
-    add edx, (sel_ldt1_-gs_1)
+    add edx, (pselldt_1-gs_1)
     mov bx, word [edx]
     lldt bx
 
@@ -459,8 +526,8 @@ start_pmr0code:
   FillPCB:
     add esp, 4
     mov ebx,dword[r0addr(curPCB)]
-    add ebx,(sel_ldt1_-gs_1);*** = 0x44 
-    mov ecx,(sel_ldt1_-gs_1)/4 ;*** = 0x11
+    add ebx,(pselldt_1-gs_1)
+    mov ecx,(pselldt_1-gs_1)/4
    .mmmove:
     sub ebx,4
     mov edx,[esp+ecx*4-4]
@@ -469,10 +536,6 @@ start_pmr0code:
     sub esp, 4
     ret
  
-  _IPCHandler:
-  IPCHandler equ _IPCHandler - $$
-    iretd
-
   _SpuriousHandler:
   SpuriousHandler equ _SpuriousHandler - $$
     push  ds 
@@ -783,7 +846,7 @@ start_pmr0code:
     loop .1
     mc_shortfunc_end
 
-  ;***** System Call ******
+  ;***** System Call;*****
   _JiffiesHandler:
   JiffiesHandler equ _JiffiesHandler - $$
     push  ds 
@@ -798,7 +861,7 @@ start_pmr0code:
     mov eax, 0
     iretd
   
-  ;********** IPC **************
+  ;********** IPC;*************
   ;int sys_sendrec(int function, int src_dest, MESSAGE* m, struct proc* p)
   sys_sendrec:
     mc_shortfunc_start
@@ -809,13 +872,114 @@ start_pmr0code:
     nop
     mc_shortfunc_end
 
+  %define pid2addr(pid) ((pid-1)*PCB_len)
+  %define PMSGSIZE ((pmsg_typ_1 - pmsg_src_1)*3)
   ;int  msg_send(struct proc* current, int dest, MESSAGE* m);
   msg_send:
-    mc_shortfunc_start
+    push ebp
+    mov ebp, esp
+    push esi
+    push ecx
+    push ebx
+    
     mov eax, [ebp+8+0];m
     mov ebx, [ebp+8+4];dest
-    mov ecx, [ebp+8+8];current
-    mc_shortfunc_end
+    mov ecx, [ebp+8+8];current pid?
+
+    push ebx
+    push ecx
+    call deadlock
+    add esp, 4*2
+    cmp eax, 0
+    je .1
+    hlt; panic
+   .1:
+    mov dx,sel_pmr0data
+    mov ds,dx
+    mov edi, eax
+    mov eax, ebx
+    mov esi, PCB_len
+    mul esi
+    mov edx, eax
+    add edx, pflags_1 - bunny_p1
+    mov esi, dword [edx]
+    and esi, RECEIVING
+    cmp esi, 0
+    je .3
+    mov edx, eax
+    add edx, precfrom_1 - bunny_p1
+    mov esi, dword [edx]
+    cmp esi, ecx
+    je .2
+    cmp esi, ANY_PROC
+    jne .3
+
+   .2:
+    mov edx, PMSGSIZE
+    push edx
+    push edi
+    push ebx
+    call memcpy
+    add esp, 4*3
+    mov edx, ebx
+    add edx, pflags_1 - bunny_p1
+    and dword [edx], (~ RECEIVING) ; p_dest->p_flags &= ~ RECEIVING
+    mov edx, ebx
+    add edx, precfrom_1 - bunny_p1
+    mov dword [edx], NO_TASK ; p_dest->p_recvfrom = NO_TASK
+    jmp .done
+   .3:
+    mov edx, ecx
+    add edx, pflags_1 - bunny_p1
+    or dword[edx], SENDING ; sender->p_flags |= SENDING
+    mov edx, ecx
+    add edx, psendto_1 - bunny_p1
+    mov dword[edx], ebx ; sender->p_sendto = dest
+    ;???
+    
+    ;if(...)...
+   .done:
+    mov eax, 0
+    pop ebx
+    pop ecx
+    pop esi
+    pop ebp
+    ret
+
+  ;{ void* memcpy(void* es:p_dst, void* ds:p_src, int size);
+  memcpy:
+    push  ebp
+    mov ebp, esp
+  
+    push  esi
+    push  edi
+    push  ecx
+  
+    mov edi, [ebp + 8]  ; Destination
+    mov esi, [ebp + 12] ; Source
+    mov ecx, [ebp + 16] ; Counter
+  .1:
+    cmp ecx, 0    ; 判断计数器
+    jz  .2    ; 计数器为零时跳出
+  
+    mov al, [ds:esi]    ; ┓
+    inc esi     ; ┃
+            ; ┣ 逐字节移动
+    mov byte [es:edi], al ; ┃
+    inc edi     ; ┛
+  
+    dec ecx   ; 计数器减一
+    jmp .1    ; 循环
+  .2:
+    mov eax, [ebp + 8]  ; 返回值
+  
+    pop ecx
+    pop edi
+    pop esi
+    mov esp, ebp
+    pop ebp
+    ret;}
+
 
   ;int  msg_receive(struct proc* current, int src, MESSAGE* m);
   msg_receive:
@@ -825,13 +989,44 @@ start_pmr0code:
     mov ecx, [ebp+8+8]
     mc_shortfunc_end
 
-  ;int  deadlock(int src, int dest);
+  ;int  deadlock(int src/*pid*/, int dest);
   deadlock:
-    mc_shortfunc_start
-    mov eax, [ebp+8+0];dest
-    mov ebx, [ebp+8+4];src
+    push ebp
+    mov ebp, esp
+    push esi
+    push ecx
+    push ebx
+    push ds
     
-    mc_shortfunc_end
+    mov dx,sel_pmr0data
+    mov ds,dx
+
+    mov eax, [ebp+8+0];dest
+    mov ebx, [ebp+8+4];srcpid
+   .1: 
+    mov esi, eax
+    add esi, pflags_1 - bunny_p1
+    mov ecx, dword [esi]
+    and ecx, SENDING
+    cmp ecx, 0
+    jz .2
+    mov esi, eax
+    add esi, psendto_1 - bunny_p1
+    cmp ebx, dword [esi]
+    jnz .3
+    mov eax, 1
+    jmp .2
+   .3:
+    add eax, psendto_1 - bunny_p1
+    jmp .1
+   .2:
+    mov eax, 0
+    pop ds
+    pop ebx
+    pop ecx
+    pop esi
+    pop ebp
+    ret
 
   ;void block(struct proc* p);
   block:

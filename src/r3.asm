@@ -1,21 +1,19 @@
-; BunnyOS 1.0
+
+;                    The BunnyOS
+;  Copyright (C) 2011 WuFuheng@gmail.com, Singapore
 ;
-; Copyright (C) 2011 Wu Fuheng.
+;  This program is free software: you can redistribute it and/or modify
+;  it under the terms of the GNU General Public License as published by
+;  the Free Software Foundation, either version 3 of the License, or
+;  (at your option) any later version.
 ;
-; BunnyOS is free software;  you can  redistribute it and/or modify it under
-; the terms of the GNU LESSER GENERAL PUBLIC LICENSE as published by the
-; Free Software Foundation; either version 2.1, or (at your option)  any
-; later version.
-; 
-; BunnyOS is distributed in the hope that it will be useful, but WITHOUT ANY
-; WARRANTY; without  even  the  implied  warranty  of MERCHANTABILITY or
-; FITNESS FOR A PARTICULAR PURPOSE.  See the  GNU General Public License
-; for more details.
-; 
-; You  should  have  received  a  copy of the GNU General Public License
-; along  with  BunnyOS;  see the  file COPYING.  If not, please write to the
-; Free Software Foundation,  51 Franklin Street, Fifth Floor, Boston, MA
-; 02110-1301, USA.
+;  This program is distributed in the hope that it will be useful,
+;  but WITHOUT ANY WARRANTY; without even the implied warranty of
+;  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;  GNU General Public License for more details.
+;
+;  You should have received a copy of the GNU General Public License
+;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 %macro r3print 4
     push %1;msg
@@ -261,10 +259,6 @@ start_ldt1data:
   ;mc_string p1name, {"Process 1", 0Ah," +printf", 0ah, 0Ah}
   ;mc_string p1name, {"simonwoo"}
   hdinfo: times ONEKB db 0
-  msg1:
-    msg_src   dd 0
-    msg_typ   dd 0
-    msg_pbody dd 0
 ldt1data_len equ $-start_ldt1data
 
 ;*********************************************************************
@@ -274,7 +268,6 @@ ALIGN 32
 start_ldt1code:
   mov ax, sel_ldt1data
   mov ds, ax
-  bunny_sendrec(BOTH,TASK_SYS,ldt1dataaddr(msg1))
   bunny_printf(ldt1dataaddr(p1data),p1data_len)
   ;push ldt1dataaddr(p1name)
   ;push p1name_len
@@ -312,6 +305,10 @@ BITS 32
 ALIGN 32
 start_ldt2data:
   mc_string p2data, {"I am proc 2 in ring 3.",0ah}
+  msg2:
+    msg_src   dd 0x1234
+    msg_typ   dd 0x4567
+    msg_pbody dd 0x8901
 ldt2data_len equ $-start_ldt2data
 
 ;*********************************************************************
@@ -321,6 +318,8 @@ ALIGN 32
 start_ldt2code:
   mov ax, sel_ldt2data
   mov ds, ax
+  mov dword[ldt2dataaddr(msg_typ)], GET_TICKS
+  bunny_sendrec(BOTH,TASK_SYS,ldt2dataaddr(msg2))
   bunny_printf(ldt2dataaddr(p2data),p2data_len)
 
   ;r3print ldt2dataaddr(p2data),p2data_len,2,1

@@ -1,3 +1,20 @@
+;                    The BunnyOS
+;  Copyright (C) 2011 WuFuheng@gmail.com, Singapore
+;
+;  This program is free software: you can redistribute it and/or modify
+;  it under the terms of the GNU General Public License as published by
+;  the Free Software Foundation, either version 3 of the License, or
+;  (at your option) any later version.
+;
+;  This program is distributed in the hope that it will be useful,
+;  but WITHOUT ANY WARRANTY; without even the implied warranty of
+;  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;  GNU General Public License for more details.
+;
+;  You should have received a copy of the GNU General Public License
+;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+;
+
 ;; 1. Read kernel.bun and load -> 7E00h ~ 9FC00 (600K)
 ;; 2. Jump to 7E00h and execute kernel
 %include "h_macro.asm"

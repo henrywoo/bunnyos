@@ -1,21 +1,19 @@
-; BunnyOS 1.0
+
+;                    The BunnyOS
+;  Copyright (C) 2011 WuFuheng@gmail.com, Singapore
 ;
-; Copyright (C) 2011 Wu Fuheng.
+;  This program is free software: you can redistribute it and/or modify
+;  it under the terms of the GNU General Public License as published by
+;  the Free Software Foundation, either version 3 of the License, or
+;  (at your option) any later version.
 ;
-; BunnyOS is free software;  you can  redistribute it and/or modify it under
-; the terms of the GNU LESSER GENERAL PUBLIC LICENSE as published by the
-; Free Software Foundation; either version 2.1, or (at your option)  any
-; later version.
-; 
-; BunnyOS is distributed in the hope that it will be useful, but WITHOUT ANY
-; WARRANTY; without  even  the  implied  warranty  of MERCHANTABILITY or
-; FITNESS FOR A PARTICULAR PURPOSE.  See the  GNU General Public License
-; for more details.
-; 
-; You  should  have  received  a  copy of the GNU General Public License
-; along  with  BunnyOS;  see the  file COPYING.  If not, please write to the
-; Free Software Foundation,  51 Franklin Street, Fifth Floor, Boston, MA
-; 02110-1301, USA.
+;  This program is distributed in the hope that it will be useful,
+;  but WITHOUT ANY WARRANTY; without even the implied warranty of
+;  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;  GNU General Public License for more details.
+;
+;  You should have received a copy of the GNU General Public License
+;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 %ifndef H_CONST_
@@ -199,8 +197,8 @@ PMR0STACK_LEN           equ (7c00h-500h-1)
 %define RECEIVE         2
 %define BOTH            3 ; BOTH = (SEND | RECEIVE) 
 
-%define SENDING         0x02  ;/* set when proc trying to send */
-%define RECEIVING       0x04  ;/* set when proc trying to recv */
+%define SENDING         0010B  ;/* set when proc trying to send */
+%define RECEIVING       0100B  ;/* set when proc trying to recv */
 
 ;* when hard interrupt occurs, a msg (with type==HARD_INT) will
 ;* be sent to some tasks
@@ -213,5 +211,11 @@ PMR0STACK_LEN           equ (7c00h-500h-1)
 %define DEV_IOCTL       1005   /* message type for drivers */
 
 %define TASK_SYS        1
+
+%define ANY_PROC        10000000b
+%define NO_TASK         10000001b
+
+%define PCB_len (bunny_p2-bunny_p1)
+
 %endif
    

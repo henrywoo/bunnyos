@@ -1,21 +1,19 @@
-; BunnyOS 1.0
+
+;                    The BunnyOS
+;  Copyright (C) 2011 WuFuheng@gmail.com, Singapore
 ;
-; Copyright (C) 2011 Wu Fuheng.
+;  This program is free software: you can redistribute it and/or modify
+;  it under the terms of the GNU General Public License as published by
+;  the Free Software Foundation, either version 3 of the License, or
+;  (at your option) any later version.
 ;
-; BunnyOS is free software;  you can  redistribute it and/or modify it under
-; the terms of the GNU LESSER GENERAL PUBLIC LICENSE as published by the
-; Free Software Foundation; either version 2.1, or (at your option)  any
-; later version.
-; 
-; BunnyOS is distributed in the hope that it will be useful, but WITHOUT ANY
-; WARRANTY; without  even  the  implied  warranty  of MERCHANTABILITY or
-; FITNESS FOR A PARTICULAR PURPOSE.  See the  GNU General Public License
-; for more details.
-; 
-; You  should  have  received  a  copy of the GNU General Public License
-; along  with  BunnyOS;  see the  file COPYING.  If not, please write to the
-; Free Software Foundation,  51 Franklin Street, Fifth Floor, Boston, MA
-; 02110-1301, USA.
+;  This program is distributed in the hope that it will be useful,
+;  but WITHOUT ANY WARRANTY; without even the implied warranty of
+;  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;  GNU General Public License for more details.
+;
+;  You should have received a copy of the GNU General Public License
+;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 %ifndef H_MACRO_
 %define H_MACRO_
@@ -194,32 +192,44 @@ bunny_p %+ %1:
    ebx_      %+ %1    dd 0
    edx_      %+ %1    dd 0
    ecx_      %+ %1    dd 0
-   eax_      %+ %1    dd 0 ;etaddr_ %+ %1 dd 13
+   eax_      %+ %1    dd 0 ; etaddr_ %+ %1 dd 13
    eip_      %+ %1    dd 0
    cs_       %+ %1    dd 0
    eflags_   %+ %1    dd 0
    esp_      %+ %1    dd 0
    ss_       %+ %1    dd 0
 
-   sel_ldt   %+ %1 %+ _  dw 0
-   pid_      %+ %1       dd 0
-   priority_ %+ %1       dd 0
-   pflags_   %+ %1       dd 0
-   pmsg_     %+ %1       dd 0
-   precfrom_ %+ %1       dd 0
-   psendto_  %+ %1       dd 0
-   intmsg_   %+ %1       dd 0
-   p_q_send_ %+ %1       dd 0
-   p_q_next_ %+ %1       dd 0
-   tty_      %+ %1       dd 0
+   pselldt_  %+ %1    dw 0
+   pid_      %+ %1    dd 0
+   priority_ %+ %1    dd 0
+   pflags_   %+ %1    dd 0
+
+   pmsg_src_ %+ %1    dd 0 ; process msg block
+   pmsg_typ_ %+ %1    dd 0 ;
+   pmsg_bdy_ %+ %1    dd 0 ;
+
+   precfrom_ %+ %1    dd 0
+   psendto_  %+ %1    dd 0
+   intmsg_   %+ %1    dd 0
+   p_q_send_ %+ %1    dd 0
+   p_q_next_ %+ %1    dd 0
+   tty_      %+ %1    dd 0
    pname_    %+ %1 times 16 db 0
 %endmacro;}
 
+%macro INITPBC 1
+  mov dword[ds_     %+ %1],sel_ldt %+ %1 %+ data
+  mov dword[cs_     %+ %1],sel_ldt %+ %1 %+ code
+  mov dword[eflags_ %+ %1],d_eflags
+  mov dword[esp_    %+ %1],d_proc_stacksize
+  mov dword[ss_     %+ %1],sel_ldt %+ %1 %+ stack
+  mov word[pselldt_ %+ %1],sel_ldt %+ %1 
+  inc dword [pidcount]
+  mov eax, dword [pidcount]
+  mov dword[pid_    %+ %1],eax
+%endmacro
 
-
-;************************************************************
 ; Text/Code macro - function like macro
-;************************************************************
 %macro mc_clearscreen 0 ;{ @param macro colour,row1,col1
   mov ah,07h
   mov al,0
@@ -293,17 +303,6 @@ bunny_p %+ %1:
 %endmacro
 %define mc_in_byte(X) _mc_in_byte X
 
-%macro INITPBC 1
-  mov dword[ds_ %+ %1],sel_ldt %+ %1 %+ data
-  mov dword[cs_ %+ %1 ],sel_ldt %+ %1 %+ code
-  mov dword[eflags_ %+ %1 ],d_eflags
-  mov dword[esp_ %+ %1 ],d_proc_stacksize
-  mov dword[ss_ %+ %1 ],sel_ldt %+ %1 %+ stack
-  mov word[sel_ldt %+ %1 %+ _],sel_ldt %+ %1 
-  mov eax, dword [pidcount]
-  mov dword[pid_ %+ %1],sel_ldt %+ %1
-  inc dword [pidcount]
-%endmacro
 
 %define MAKE_DEVICE_REG(lba,drv,lba_highest)\
   (((lba) << 6)|((drv) << 4)|(lba_highest & 0xF)|0xA0)
