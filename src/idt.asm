@@ -1,3 +1,20 @@
+
+;                    The BunnyOS
+;  Copyright (C) 2011 WuFuheng@gmail.com, Singapore
+;
+;  This program is free software: you can redistribute it and/or modify
+;  it under the terms of the GNU General Public License as published by
+;  the Free Software Foundation, either version 3 of the License, or
+;  (at your option) any later version.
+;
+;  This program is distributed in the hope that it will be useful,
+;  but WITHOUT ANY WARRANTY; without even the implied warranty of
+;  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;  GNU General Public License for more details.
+;
+;  You should have received a copy of the GNU General Public License
+;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 .irq0  : mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq1  : mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq2  : mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
@@ -151,7 +168,7 @@
 .irq150: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq151: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq152: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
-.irq153: mc_descp_gate sel_pmr0code,IPCHandler,      0,DA_386Imc_descp_gate+DA_DPL3
+.irq153: mc_descp_gate sel_pmr0code,SysHandler,      0,DA_386Imc_descp_gate+DA_DPL3
 .irq154: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq155: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq156: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
