@@ -197,7 +197,7 @@ start_pmr0code:
   mov fs, cx
 
   mov ax, sel_tss
-  ltr ax
+  ltr ax ; Load Task Register
 
   %define RATE_GENERATOR 34h ;/* 00-11-010-0 :
   %define TIMER_FREQ     1193182; /* clock frequency for timer in PC and AT;/
@@ -252,7 +252,7 @@ start_pmr0code:
   push sel_ldt1code
   push 0
   retf
-  mov eax, 0x1234
+  mov eax, 0x1234 ; for debugging purpose
 
   jmp $
 
