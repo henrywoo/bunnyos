@@ -18,7 +18,7 @@
 %include "h_macro.asm"
 %include "h_const.asm"
 
-org KERNELADDRABS
+org KERNELADDRABS ;
 jmp start_real
 
 %define r0addr(X) (X-start_pmr0data)
@@ -116,7 +116,7 @@ start_real:
   or al, 00000010b
   out 92h, al
 
-  ; 4. set cr0 PE
+  ; 4. set cr0 PE (enables the Protection Enable (PE) bit in the control register 0 (CR0))
   mov eax, cr0
   or eax, 1
   mov cr0, eax
