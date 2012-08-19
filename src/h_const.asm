@@ -72,7 +72,7 @@ PG_USU                  equ 4
 ;Absolute Address Constants
 ;*******************************************************************
 KERNELADDR              equ 7E0h
-KERNELADDRABS           equ 7E00h
+KERNELADDRABS           equ 7E00h ;200h = 512
 STACKTOP                equ 7C00h ;~ 30K stack space
 STACKBOT                equ 500h
 

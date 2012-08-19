@@ -129,7 +129,8 @@ start_real:
 BITS 32
 ALIGN 32
 GDT_1:      mc_descp 0,0,0
-GDT_2:      mc_descp 0B8000h, 32*1024-1, DA_DRW+DA_DPL3;***video
+;GDT_2:      mc_descp 0B8000h, 32*1024-1, DA_DRW+DA_DPL3;***video
+GDT_2:      mc_descp 0B8000h, 0x0ffff-1, DA_DRW+DA_DPL3;***video - video buffer length === 0xffff, limit is valid only for first 20 bits according to descriptor definition!
 GDT_3:      mc_descp 0, pmr0code_len-1, DA_CR+DA_32;***code
 GDT_4:      mc_descp 0, pmr0data_len-1, DA_DRWA+DA_32 ;***data
 GDT_5:      mc_descp STACKBOT, (STACKTOP-STACKBOT-1), DA_DRWA+DA_32 ;***stack
@@ -142,7 +143,7 @@ GDT_r3text: mc_descp 0, r3text_len-1, DA_CR+DA_32+DA_DPL3;***ring 3 code/text/fu
 GDT_r3data: mc_descp 0, r3data_len-1, DA_DRWA+DA_32+DA_DPL3;***ring 3 data
 
 gdt_len equ $-GDT_1
-gdtptr  dw (gdt_len - 1)
+gdtptr  dw (gdt_len - 1) ; 16 + 32 = 48 bits
         dd (GDT_1)
 
 sel_video     equ GDT_2      -GDT_1 +011b
@@ -210,10 +211,10 @@ start_pmr0code:
   call Init8259A
   sti
 
-  INITPBC 1
-  INITPBC 2
-  INITPBC 3
-  INITPBC 4
+  INITPCB 1
+  INITPCB 2
+  INITPCB 3
+  INITPCB 4
 
   mov dword[curPCB],r0addr(bunny_p1)
   mov ax, sel_ldt1
@@ -814,7 +815,7 @@ start_pmr0code:
     ;mov eax, edi;disregard parameter row 
     mov edx, [ebp+16]
     mov al, byte [ds:(edx+ebx)]
-    mov ah, 0Dh
+    mov ah, 0Ch
     mov [fs:edi], ax
     inc ebx
     add edi, 2

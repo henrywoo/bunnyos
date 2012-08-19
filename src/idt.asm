@@ -159,7 +159,7 @@
 .irq141: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq142: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
 .irq143: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate
-.irq144: mc_descp_gate sel_pmr0code,JiffiesHandler,  0,DA_386Imc_descp_gate+DA_DPL3
+.irq144: mc_descp_gate sel_pmr0code,JiffiesHandler,  0,DA_386Imc_descp_gate+DA_DPL3 ; 90h = 144
 .irq145: mc_descp_gate sel_pmr0code,GetPidHandler,   0,DA_386Imc_descp_gate+DA_DPL3
 .irq146: mc_descp_gate sel_pmr0code,PrintfHandler,   0,DA_386Imc_descp_gate+DA_DPL3
 .irq147: mc_descp_gate sel_pmr0code,SpuriousHandler, 0,DA_386Imc_descp_gate

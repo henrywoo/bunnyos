@@ -178,7 +178,7 @@
   KEYMAPDATA_ROW_NUM equ KEYMAPDATA_SIZE/3
 %endmacro;}
 
-;{ struct for Process Control Table(PCB)
+;{ struct for Process Control Block Table(PCB)
 %macro mc_pcb_table 1
 bunny_p %+ %1:
    gs_       %+ %1    dd 0
@@ -200,8 +200,8 @@ bunny_p %+ %1:
    ss_       %+ %1    dd 0
 
    pselldt_  %+ %1    dw 0
-   pid_      %+ %1    dd 0
-   priority_ %+ %1    dd 0
+   pid_      %+ %1    dd 0 ; process id
+   priority_ %+ %1    dd 0 ; process priority
    pflags_   %+ %1    dd 0
 
    pmsg_src_ %+ %1    dd 0 ; process msg block
@@ -217,7 +217,7 @@ bunny_p %+ %1:
    pname_    %+ %1 times 16 db 0
 %endmacro;}
 
-%macro INITPBC 1
+%macro INITPCB 1
   mov dword[ds_     %+ %1],sel_ldt %+ %1 %+ data
   mov dword[cs_     %+ %1],sel_ldt %+ %1 %+ code
   mov dword[eflags_ %+ %1],d_eflags
