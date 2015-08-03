@@ -3,9 +3,13 @@ Assembly (NASM)
 
 - Illustration
 
-Memory Layout: http://code.google.com/p/bunnyos/wiki/MemLayout
+Memory Layout
 
-PCB: http://code.google.com/p/bunnyos/wiki/PCB
+![Memory Layout](https://lh3.googleusercontent.com/_XVm5w4qAntE/TXGKWQVM1bI/AAAAAAAAAO4/q0R8ezvSJlA/BunnyOS.jpg)
+
+Process Control Block Structure
+
+![PCB](https://lh6.googleusercontent.com/_XVm5w4qAntE/TXGvNC9Ut4I/AAAAAAAAAPI/XhrYi-p3X58/PCB.jpg)
 
 - My Development Tool - Vim & Bochs
 
