@@ -7,9 +7,10 @@ Memory Layout: http://code.google.com/p/bunnyos/wiki/MemLayout
 
 PCB: http://code.google.com/p/bunnyos/wiki/PCB
 
-- My Development Tool - Vim & Bochs:
+- My Development Tool - Vim & Bochs
 
-Screen Capture
+- Screen Capture
+
 ![bunnyos](https://lh5.googleusercontent.com/_XVm5w4qAntE/TYR3gF6ISYI/AAAAAAAAAQc/yzckIyLl89k/bunny_sc1.jpg)
 
 - Developing Status
